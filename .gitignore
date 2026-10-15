@@ -1,0 +1,10 @@
+.python-version
+
+__pycache__
+
+.env
+
+*.cache.sqlite
+
+/data/*
+!/data/.gitkeep
