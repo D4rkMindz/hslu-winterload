@@ -1,0 +1,32 @@
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: winterload-seaweedfs
+    restart: unless-stopped
+    # Default command is `weed mini -dir=/data` (master + volume + filer + S3 in one process).
+    # The admin UI binds to loopback-only inside the container regardless of -ip.bind, unless
+    # -admin.allowInsecureBind is set. without it, nothing listens on 0.0.0.0:23646 for the
+    # published port to reach, even though the port mapping itself is fine.
+    command: [ "mini", "-dir=/data", "-admin.allowInsecureBind" ]
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8333:8333"  # S3 API
+      - "8889:8888"  # Filer UI
+      - "9333:9333"  # Master UI
+      - "23646:23646" # Admin UI
+    volumes:
+      - seaweedfs_data:/data
+    networks:
+      - winterload-development
+      - winterload-production
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://seaweedfs:8333/status" ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  seaweedfs_data:
