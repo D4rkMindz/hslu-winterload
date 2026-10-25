@@ -1,10 +1,13 @@
-.python-version
-
 __pycache__
 
-.env
+*.env*
+!.env.example
+!.env.docker.example
 
 *.cache.sqlite
+*-pycharm-support-libs
 
 /data/*
 !/data/.gitkeep
+
+/src/winterload/feature_repo/data/*
