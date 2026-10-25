@@ -1,3 +1,4 @@
+import logging
 import datetime as dt
 from xml.etree import ElementTree as ET
 
@@ -18,10 +19,12 @@ class EntsoE(object):
 
     def __init__(self):
         self.api_key = settings.entsoe_api_key
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def get_load(self, start_date=dt.datetime(2015, 1, 1, 0, 0, 0), end_date=dt.datetime(2015, 12, 31, 23, 59, 59)):
         # curl --location 'https://web-api.tp.entsoe.eu/api?documentType=A65&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202303030000&periodEnd=202303060000' \
         # --header 'SECURITY_TOKEN: •••••••'
+        self.logger.info("Getting energy load data from ENTSO-E API between %s and %s", start_date, end_date)
         r = requests.get(f"{self.BASE_URL}", params={
             # https://transparencyplatform.zendesk.com/hc/en-us/articles/15885757676308-Area-List-with-Energy-Identification-Code-EIC
             "outBiddingZone_Domain": "10YCH-SWISSGRIDZ",
@@ -31,11 +34,11 @@ class EntsoE(object):
             "periodStart": start_date.strftime("%Y%m%d%H%M"),
             "periodEnd": end_date.strftime("%Y%m%d%H%M"),
         }, headers={"SECURITY_TOKEN": self.api_key})
-        return self._parse_load(r.content)
+        return self._parse_energy_load(r.content)
 
-    def _parse_load(self, xml: bytes | str) -> list:
+    def _parse_energy_load(self, xml: bytes | str) -> list:
         root = ET.fromstring(xml)
-        rows = []
+        energy_load_rows = []
         for time_series in root.findall("ns:TimeSeries", self.NS):
             bidding_zone = time_series.findtext("ns:outBiddingZone_Domain.mRID", namespaces=self.NS)
             unit = time_series.findtext("ns:quantity_Measure_Unit.name", namespaces=self.NS)
@@ -46,11 +49,12 @@ class EntsoE(object):
                 step = self.RESOLUTION_TO_TIMEDELTA[resolution]
                 for point in period.findall("ns:Point", self.NS):
                     position = int(point.findtext("ns:position", namespaces=self.NS))
-                    rows.append({
+                    energy_load_rows.append({
                         "timestamp": period_start + (position - 1) * step,
                         "quantity": float(point.findtext("ns:quantity", namespaces=self.NS)),
                         "bidding_zone": bidding_zone,
                         "unit": unit,
                     })
 
-        return rows
+        self.logger.debug("Parsed %i rows", len(energy_load_rows))
+        return energy_load_rows
