@@ -1,0 +1,14 @@
+project: winterload
+registry: data/registry.db
+provider: gcp
+online_store: null
+# Used instead of feature_store.yaml when FEAST_FS_YAML_FILE_PATH in .env points here, together with
+# OFFLINE_STORAGE=bigquery. ${VAR}s are expanded from the environment, i.e. from .env.
+offline_store:
+  type: bigquery
+  project_id: ${GCP_PROJECT_ID}
+  # Holds the feature tables (winterload.storage.bigquery) and the temporary tables Feast creates
+  # for point-in-time joins.
+  dataset: ${BIGQUERY_DATASET}
+  location: ${BIGQUERY_LOCATION}
+entity_key_serialization_version: 3

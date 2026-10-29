@@ -11,3 +11,12 @@ __pycache__
 !/data/.gitkeep
 
 /src/winterload/feature_repo/data/*
+
+# service account keys etc., mounted into the container (see docker-compose.yaml)
+/secrets/
+
+# Terraform: providers and local state; .terraform.lock.hcl is committed to pin provider versions
+/infra/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

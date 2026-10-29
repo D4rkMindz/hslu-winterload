@@ -14,7 +14,6 @@ import logging
 
 import pandas as pd
 from winterload import COORDINATES
-from winterload.config import settings
 from winterload.pipeline.features import OpenMeteoBackfillPipeline
 from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo
 
@@ -31,14 +30,12 @@ RUN_HOUR_UTC = 0
 
 class WeatherForecastBackfill(OpenMeteoBackfillPipeline):
     name = "weather_forecast_stats"
+    table = "weather_forecast"
 
     @staticmethod
     def get_forecast_run(target_day: dt.date) -> dt.datetime:
         """The ECMWF run that was actually available at 08:00 Zurich time on `day_minus_1`."""
         return dt.datetime.combine(target_day - dt.timedelta(days=1), dt.time(RUN_HOUR_UTC, 0))
-
-    def day_path(self, target_day: dt.date) -> str:
-        return f"{settings.feast_store_path}/weather_forecast/{target_day.isoformat()}.parquet"
 
     def load_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict] = COORDINATES) -> list[dict]:
         """One row per (city, hour) for the 24 local hours of `target_day`."""

@@ -16,10 +16,8 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 from winterload import COORDINATES
-from winterload.storage import get_filesystem
+from winterload.storage import Storage, get_storage
 from winterload.source.openmeteo import OpenMeteo
 
 # The full span the proposal trains and evaluates on: "used from 01.2022 (start of the forecast
@@ -52,6 +50,13 @@ class BackfillPipeline(ABC):
 
     #: Human-readable name used in progress output; defaults to the class name if not overridden.
     name: str = ""
+    #: The table this pipeline writes to: a directory of per-day Parquet files on S3, a BigQuery
+    #: table in BigQuery -- see winterload.storage.
+    table: str
+
+    def __init__(self, storage: Storage | None = None) -> None:
+        #: Where to write; defaults to the configured OFFLINE_STORAGE.
+        self.storage = storage or get_storage()
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
@@ -62,6 +67,12 @@ class BackfillPipeline(ABC):
     def build_range(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> tuple[int, int, int]:
         """Writes one Parquet file per day in [start_date, end_date], skipping days that already
         have a file unless `force`. Returns (written, skipped, failed)."""
+
+    def day_exists(self, target_day: dt.date) -> bool:
+        return self.storage.day_exists(self.table, target_day)
+
+    def write_day(self, df: pd.DataFrame, target_day: dt.date) -> str:
+        return self.storage.write_day(self.table, df, target_day)
 
 
 class OpenMeteoBackfillPipeline(BackfillPipeline):
@@ -74,23 +85,8 @@ class OpenMeteoBackfillPipeline(BackfillPipeline):
         """Transform the open meteo data for a day"""
 
     @abstractmethod
-    def day_path(self, target_day: dt.date) -> str:
-        """Returns the path for a day. e.g.
-        return f"{settings.feast_store_path}/weather_forecast/{target_day.isoformat()}.parquet" """
-
-    @abstractmethod
     def feature_columns(self) -> list[str]:
         """Returns a list of all feature columns"""
-
-    def day_exists(self, target_day: dt.date) -> bool:
-        path = self.day_path(target_day)
-        return get_filesystem(path).exists(path)
-
-    def write_day(self, df: pd.DataFrame, target_day: dt.date) -> str:
-        path = self.day_path(target_day)
-        filesystem = get_filesystem(path)
-        pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path, filesystem=filesystem)
-        return path
 
     def build_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict] = COORDINATES) -> pd.DataFrame:
         city_rows = self.load_day(client, target_day, cities)
@@ -146,16 +142,18 @@ def discover_pipelines() -> list[type[BackfillPipeline]]:
 
 
 def run_all(
-        start_date: dt.date = DEFAULT_START_DATE, end_date: dt.date = DEFAULT_END_DATE, force: bool = False
+        start_date: dt.date = DEFAULT_START_DATE, end_date: dt.date = DEFAULT_END_DATE, force: bool = False,
+        storage: Storage | None = None,
 ) -> None:
-    """Runs every discovered pipeline's `build_range` over [start_date, end_date]."""
+    """Runs every discovered pipeline's `build_range` over [start_date, end_date], writing to
+    `storage` (default: the configured OFFLINE_STORAGE)."""
     pipelines = discover_pipelines()
     if not pipelines:
         logger.warning("No BackfillPipeline subclasses found under winterload.pipeline")
         return
 
     for cls in pipelines:
-        pipeline = cls()
+        pipeline = cls(storage)
         logger.info("=== %s: %s to %s ===", pipeline.name, start_date, end_date)
         written, skipped, failed = pipeline.build_range(start_date, end_date, force=force)
         logger.info(

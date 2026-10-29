@@ -1,10 +1,10 @@
 from datetime import timedelta
 
-from feast import Entity, FeatureView, Field, FileSource
+from feast import Entity, FeatureView, Field
 from feast.types import Float32, String
 from feast.value_type import ValueType
 
-from winterload.config import settings
+from winterload.storage import get_storage
 
 # weather observations
 location = Entity(name="location", join_keys=["location_id"], value_type=ValueType.STRING)
@@ -12,29 +12,15 @@ location = Entity(name="location", join_keys=["location_id"], value_type=ValueTy
 # energy loads
 bidding_zone = Entity(name="bidding_zone", join_keys=["bidding_zone_id"], value_type=ValueType.STRING)
 
-weather_forecast_source = FileSource(
-    # One Parquet file per day (see pipeline.weather_backfill), read as a single dataset -- this
-    # is what makes the backfill resumable instead of risking a multi-hour single-file rewrite.
-    path=f"{settings.feast_store_path}/weather_forecast",
-    timestamp_field="event_timestamp",
-    s3_endpoint_override=settings.s3_endpoint,
-)
+# Read from whichever backend OFFLINE_STORAGE selects -- the same one the backfill pipelines
+# (winterload.pipeline.features) write one day at a time to, which is what makes them resumable.
+storage = get_storage()
 
-weather_measurements_source = FileSource(
-    # One Parquet file per day (see pipeline.weather_measurements_backfill), same resumable
-    # layout as weather_forecast_source.
-    path=f"{settings.feast_store_path}/weather_measurements",
-    timestamp_field="event_timestamp",
-    s3_endpoint_override=settings.s3_endpoint,
-)
+weather_forecast_source = storage.source("weather_forecast")
 
-energy_load_source = FileSource(
-    # One Parquet file per day (see pipeline.energy_load_backfill), same resumable layout as
-    # weather_forecast_source.
-    path=f"{settings.feast_store_path}/energy_load",
-    timestamp_field="event_timestamp",
-    s3_endpoint_override=settings.s3_endpoint,
-)
+weather_measurements_source = storage.source("weather_measurements")
+
+energy_load_source = storage.source("energy_load")
 
 # Shared by weather_forecast_stats and weather_measurements_stats; matches
 # winterload.source.openmeteo.HOURLY_VARIABLES so forecast and measurement rows are directly

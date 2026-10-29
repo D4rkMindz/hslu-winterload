@@ -11,6 +11,9 @@ services:
     env_file:
       - .env
       - .env.docker
+    volumes:
+      # GCP service account key for OFFLINE_STORAGE=bigquery (GOOGLE_APPLICATION_CREDENTIALS in .env.docker)
+      - ./secrets:/app/secrets:ro
     networks:
       - winterload-development
       - winterload-production

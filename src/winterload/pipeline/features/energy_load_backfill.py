@@ -10,15 +10,12 @@ import datetime as dt
 import logging
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 # Must run before `fsspec` is imported by anything below (incl. transitively via feast/dask):
 # fsspec snapshots its env-var config (FSSPEC_S3_*) at first import, so loading .env any later
 # leaves the SeaweedFS S3 credentials unset and historical retrieval fails with NoCredentialsError.
-from winterload.config import settings
+from winterload.config import settings  # noqa: F401
 from winterload.pipeline.features import BackfillPipeline, retry
 from winterload.source.entso_e import EntsoE
-from winterload.storage import get_filesystem
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +24,7 @@ FEATURE_COLUMNS = ["event_timestamp", "bidding_zone_id", "quantity", "unit"]
 
 class EnergyLoadBackfill(BackfillPipeline):
     name = "energy_load_stats"
-
-    def day_path(self, target_day: dt.date) -> str:
-        return f"{settings.feast_store_path}/energy_load/{target_day.isoformat()}.parquet"
-
-    def day_exists(self, target_day: dt.date) -> bool:
-        path = self.day_path(target_day)
-        return get_filesystem(path).exists(path)
+    table = "energy_load"
 
     def load_day(self, target_day: dt.date, client: EntsoE):
         start = dt.datetime.combine(target_day, dt.time.min)
@@ -46,15 +37,6 @@ class EnergyLoadBackfill(BackfillPipeline):
             columns={"timestamp": "event_timestamp", "bidding_zone": "bidding_zone_id"}
         )
         return result[FEATURE_COLUMNS]
-
-    def write_day(self, df: pd.DataFrame, target_day: dt.date, force: bool = False) -> str:
-        path = self.day_path(target_day)
-        written = False
-        if not self.day_exists(target_day) or force:
-            fs = get_filesystem(path)
-            pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path, filesystem=fs)
-            written = True
-        return written, path
 
     def build_range(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> tuple[int, int, int]:
         client = EntsoE()

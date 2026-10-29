@@ -2,6 +2,7 @@ import logging
 import sys
 
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, ValidationError
@@ -41,6 +42,11 @@ class Settings(BaseSettings):
     # feast_store_path: str = Field(default="s3://feast/", alias="FEAST_S3_STORE_PATH") # online
     feast_store_path: str = Field(default="data/offline", alias="FEAST_OFFLINE_STORE_PATH")
     gcp_project_id: str = Field(alias="GCP_PROJECT_ID")
+
+    # Where the backfills write and Feast reads (see winterload.storage): "s3" or "bigquery"
+    offline_storage: Literal["s3", "bigquery"] = Field(default="s3", alias="OFFLINE_STORAGE")
+    bigquery_dataset: str = Field(default="winterload", alias="BIGQUERY_DATASET")
+    bigquery_location: str = Field(default="europe-west6", alias="BIGQUERY_LOCATION")
 
     s3_endpoint: str | None = Field(default=None, alias="S3_ENDPOINT")
 

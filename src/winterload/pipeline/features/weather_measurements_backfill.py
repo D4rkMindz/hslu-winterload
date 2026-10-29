@@ -11,7 +11,6 @@ import logging
 
 import pandas as pd
 from winterload import COORDINATES
-from winterload.config import settings
 from winterload.pipeline.features import OpenMeteoBackfillPipeline
 from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo
 
@@ -20,9 +19,7 @@ logger = logging.getLogger(__name__)
 
 class WeatherMeasurementsBackfill(OpenMeteoBackfillPipeline):
     name = "weather_measurements_stats"
-
-    def day_path(self, target_day: dt.date) -> str:
-        return f"{settings.feast_store_path}/weather_measurements/{target_day.isoformat()}.parquet"
+    table = "weather_measurements"
 
     def load_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict] = COORDINATES) -> pd.DataFrame:
         rows = {}
