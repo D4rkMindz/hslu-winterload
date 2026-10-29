@@ -114,6 +114,14 @@ The target of the data pipeline can be configured using the `OFFLINE_STORAGE` .e
 To use BigQuery as a database, you also have Google Cloud setup (see infrastructure) and you have to configure 
 `GCP_PROJECT_ID`, `BIGQUERY_LOCATION` and `BIGQUERY_DATASET` accordingly.
 
+# Pipeline
+
+Run the pipeline using
+
+```shell
+uv run winterload
+```
+
 
 # LICENSE
 proprietary (for now)
