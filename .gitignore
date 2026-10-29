@@ -1,10 +1,22 @@
-.python-version
-
 __pycache__
 
-.env
+*.env*
+!.env.example
+!.env.docker.example
 
 *.cache.sqlite
+*-pycharm-support-libs
 
 /data/*
 !/data/.gitkeep
+
+/src/winterload/feature_repo/data/*
+
+# service account keys etc., mounted into the container (see docker-compose.yaml)
+/secrets/
+
+# Terraform: providers and local state; .terraform.lock.hcl is committed to pin provider versions
+/infra/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

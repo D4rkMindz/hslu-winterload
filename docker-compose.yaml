@@ -1,0 +1,22 @@
+include:
+  - docker/networks.yaml
+  - docker/seaweedfs/docker-compose.yaml
+
+services:
+  winterload:
+    build: .
+    image: winterload
+    container_name: winterload
+    restart: "no" # run only on command (controlled by kestra)
+    env_file:
+      - .env
+      - .env.docker
+    volumes:
+      # GCP service account key for OFFLINE_STORAGE=bigquery (GOOGLE_APPLICATION_CREDENTIALS in .env.docker)
+      - ./secrets:/app/secrets:ro
+    networks:
+      - winterload-development
+      - winterload-production
+    depends_on:
+      seaweedfs:
+        condition: service_healthy

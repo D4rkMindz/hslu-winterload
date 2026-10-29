@@ -1,0 +1,7 @@
+networks:
+  default:
+    name: winterload-development
+  winterload-development:
+    name: winterload-development
+  winterload-production:
+    name: winterload-production
