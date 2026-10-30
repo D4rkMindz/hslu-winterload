@@ -1,12 +1,12 @@
 import datetime as dt
 
-from winterload.pipeline import DEFAULT_START_DATE
-
-TEST_START = dt.date(2025, 9, 23)
-TEST_END = dt.date(2026, 9, 23)
-
-VALIDATION_START = dt.date(2025, 7, 29)
-VALIDATION_END = TEST_START
+from winterload import DEFAULT_START_DATE, DEFAULT_END_DATE
 
 TRAIN_START = DEFAULT_START_DATE
-TRAIN_END = VALIDATION_START
+TRAIN_END = DEFAULT_END_DATE - dt.timedelta(days=365) - dt.timedelta(weeks=12)
+
+VALIDATION_START = TRAIN_END
+VALIDATION_END = DEFAULT_END_DATE - dt.timedelta(days=365)
+
+TEST_START = VALIDATION_END
+TEST_END = DEFAULT_END_DATE
