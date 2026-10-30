@@ -8,7 +8,8 @@ their own defaults.
 import datetime as dt
 from typing import Callable
 
-from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE, FeaturePipeline
+from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
+from winterload.pipeline.features import FeaturePipeline
 from winterload.pipeline.features.energy_load_backfill import EnergyLoadBackfill
 from winterload.pipeline.features.weather_forecast_backfill import WeatherForecastBackfill
 from winterload.pipeline.features.weather_measurements_backfill import WeatherMeasurementsBackfill

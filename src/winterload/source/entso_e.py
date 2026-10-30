@@ -5,8 +5,8 @@ from xml.etree import ElementTree as ET
 
 import requests
 
+from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.config import settings
-from winterload.pipeline import DEFAULT_START_DATE, DEFAULT_END_DATE
 
 
 class EnergyLoadRecord(TypedDict):

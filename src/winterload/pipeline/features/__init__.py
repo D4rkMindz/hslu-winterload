@@ -14,11 +14,9 @@ from abc import abstractmethod
 from typing import Callable, TypedDict, Any
 
 import pandas as pd
+from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.pipeline.base import Pipeline
 from winterload.storage import Storage, get_storage
-
-DEFAULT_START_DATE = dt.date(2022, 1, 1)
-DEFAULT_END_DATE = dt.date(2026, 9, 23)
 
 RETRY_ATTEMPTS = 2
 RETRY_WAIT_SECONDS = 30

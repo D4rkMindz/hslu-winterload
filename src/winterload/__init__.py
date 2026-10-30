@@ -1,4 +1,8 @@
+import datetime as dt
 from typing import TypedDict
+
+DEFAULT_START_DATE = dt.date(2022, 1, 1)
+DEFAULT_END_DATE = dt.date(2026, 9, 23)
 
 
 class Coordinate(TypedDict):
