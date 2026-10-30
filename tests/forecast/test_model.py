@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from winterload.forecast.dataset import TARGET_COLUMN
-from winterload.forecast.model import PreliminaryModel
+from winterload.forecast.model.preliminary import PreliminaryModel
 
 
 def test_fit_then_evaluate_on_a_learnable_relationship():
