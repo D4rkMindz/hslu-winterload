@@ -2,21 +2,34 @@
 # then rewritten to a class
 import logging
 from datetime import date, datetime
+from typing import Any, TypedDict
 
 import openmeteo_requests
-from openmeteo_sdk import Model
 import pandas as pd
 import requests_cache
+from openmeteo_sdk import Model
 from retry_requests import retry
 
 # Named weather features used by the model (docs/proposal.pdf, Named features): mean of the
 # four cities' temperature, cloud cover and shortwave radiation.
-HOURLY_VARIABLES = ["temperature_2m", "cloud_cover", "shortwave_radiation"]
+# TODO: migrate to "temperature_2m", "cloud_cover", "shortwave_radiation", "sunshine_duration", "cloud_cover_high", "cloud_cover_mid", "cloud_cover_low", "rain", "snowfall", "relative_humidity_2m", "dew_point_2m"
+class OpenMeteoRecord(TypedDict):
+    temperature_2m: float
+    cloud_cover: float
+    shortwave_radiation: float
+
+class OpenMeteoModelResult(TypedDict):
+    hourly: list[OpenMeteoRecord]
 
 # ECMWF IFS HRES (9km): the only model with a Single Runs archive before April 2026, and used
 # consistently across backfill, live inference and the legacy historic source so no step trades
 # one model's bias for another's.
-MODEL = "ecmwf_ifs"
+class OpenMeteoResult(TypedDict):
+    ecmwf_ifs: OpenMeteoModelResult
+
+
+HOURLY_VARIABLES: list[str] = list(OpenMeteoRecord.__annotations__)
+MODELS: list[str] = list(OpenMeteoModelResult.__annotations__)
 
 
 class OpenMeteo(object):
@@ -38,46 +51,46 @@ class OpenMeteo(object):
                 return name
         return ""
 
-    def get_weather_backfill(self, lat: float, lon: float, run: datetime) -> dict:
+    def get_weather_backfill(self, lat: float, lon: float, run: datetime) -> OpenMeteoResult:
         self.logger.info("Getting backfill weather for run %s at (%s, %s)", run.isoformat(), lat, lon)
         params = {
             "latitude": str(lat),
             "longitude": str(lon),
             "hourly": HOURLY_VARIABLES,
-            "models": MODEL,
+            "models": MODELS,
             "run": run.strftime("%Y-%m-%dT%H:%M"),
         }
         responses = self.client.weather_api(f"{self.SINGLE_RUNS_URL}/v1/forecast", params=params, timeout=120)
         return self._parse_by_model(responses)
 
-    def get_weather_forecast(self, lat: float, lon: float, forecast_hours: int = 48) -> dict:
+    def get_weather_forecast(self, lat: float, lon: float, forecast_hours: int = 48) -> OpenMeteoResult:
         self.logger.info("Getting live weather forecast at (%s,%s)", lat, lon)
         params = {
             "latitude": str(lat),
             "longitude": str(lon),
             "hourly": HOURLY_VARIABLES,
-            "models": MODEL,
+            "models": MODELS,
             "forecast_hours": forecast_hours,
         }
         responses = self.client.weather_api(f"{self.FORECAST_URL}/v1/forecast", params=params, timeout=120)
         return self._parse_by_model(responses)
 
-    def get_weather_historic(self, lat: float, lon: float, start_date: date, end_date: date) -> dict:
+    def get_weather_historic(self, lat: float, lon: float, start_date: date, end_date: date) -> OpenMeteoResult:
         self.logger.info("Getting historical (short-lead) weather data between %s and %s at (%s,%s)", start_date,
                          end_date, lat, lon)
         params = {
             "latitude": str(lat),
             "longitude": str(lon),
             "hourly": HOURLY_VARIABLES,
-            "models": MODEL,
+            "models": MODELS,
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
         }
         responses = self.client.weather_api(f"{self.HISTORICAL_FORECAST_URL}/v1/forecast", params=params, timeout=120)
         return self._parse_by_model(responses)
 
-    def _parse_by_model(self, responses) -> dict:
-        result = {}
+    def _parse_by_model(self, responses) -> OpenMeteoResult:
+        result: OpenMeteoResult = {}
         for response in responses:
             self.logger.debug("Coordinates: %s°N %s°E", response.Latitude(), response.Longitude())
             self.logger.debug("Elevation: %s m asl", response.Elevation())
