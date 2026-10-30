@@ -3,8 +3,10 @@ read by Feast's `file` offline store (feature_store.yaml).
 """
 
 import datetime as dt
+import json
 import logging
 
+from typing import Any
 from urllib.parse import urlparse
 
 import fsspec
@@ -51,6 +53,37 @@ class S3Storage(Storage):
             timestamp_field="event_timestamp",
             s3_endpoint_override=settings.s3_endpoint,
         )
+
+    def read_range(self, table: str, start: dt.date, end: dt.date) -> pd.DataFrame:
+        path = f"{settings.feast_store_path}/{table}"
+        filesystem = get_filesystem(path)
+        if not filesystem.exists(path):
+            return pd.DataFrame()
+        # Reads every day's Parquet file under `table/` as one dataset (pyarrow treats a directory
+        # path as a dataset), then filters to the requested window -- same per-day layout Feast's
+        # FileSource reads, just without going through a Feast point-in-time join.
+        df = pq.read_table(path, filesystem=filesystem).to_pandas()
+        start_ts = pd.Timestamp(start, tz="UTC")
+        end_ts = pd.Timestamp(end, tz="UTC")
+        in_range = (df["event_timestamp"] >= start_ts) & (df["event_timestamp"] < end_ts)
+        return df.loc[in_range].sort_values("event_timestamp").reset_index(drop=True)
+
+    def marker_path(self, key: str) -> str:
+        return f"{settings.feast_store_path}/_markers/{key}.json"
+
+    def read_marker(self, key: str) -> dict[str, Any] | None:
+        path = self.marker_path(key)
+        filesystem = get_filesystem(path)
+        if not filesystem.exists(path):
+            return None
+        with filesystem.open(path, "r") as f:
+            return json.load(f)
+
+    def write_marker(self, key: str, data: dict[str, Any]) -> None:
+        path = self.marker_path(key)
+        filesystem = get_filesystem(path)
+        with filesystem.open(path, "w") as f:
+            json.dump(data, f, default=str)
 
     def setup(self) -> None:
         """Creates the S3 bucket backing the Feast offline store on SeaweedFS, if it doesn't exist yet.

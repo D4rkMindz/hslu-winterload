@@ -4,8 +4,10 @@ own, read by Feast's `bigquery` offline store (feature_store.bigquery.yaml).
 """
 
 import datetime as dt
+import json
 import logging
 from functools import cached_property
+from typing import Any
 
 import pandas as pd
 from feast import BigQuerySource
@@ -18,6 +20,7 @@ from winterload.storage.base import Storage
 logger = logging.getLogger(__name__)
 
 PARTITION_COLUMN = "backfill_day"
+MARKERS_TABLE = "_markers"
 
 _weather_fields = [bigquery.SchemaField(name, "FLOAT64") for name in HOURLY_VARIABLES]
 
@@ -89,6 +92,39 @@ class BigQueryStorage(Storage):
     def source(self, table: str) -> BigQuerySource:
         return BigQuerySource(name=table, table=self.table_id(table), timestamp_field="event_timestamp")
 
+    def read_range(self, table: str, start: dt.date, end: dt.date) -> pd.DataFrame:
+        query = f"""
+            SELECT * EXCEPT({PARTITION_COLUMN}) FROM `{self.table_id(table)}`
+            WHERE event_timestamp >= @start AND event_timestamp < @end
+            ORDER BY event_timestamp
+        """
+        job_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("start", "TIMESTAMP", dt.datetime.combine(start, dt.time.min)),
+            bigquery.ScalarQueryParameter("end", "TIMESTAMP", dt.datetime.combine(end, dt.time.min)),
+        ])
+        return self.client.query(query, job_config=job_config).result().to_dataframe()
+
+    def read_marker(self, key: str) -> dict[str, Any] | None:
+        query = f"SELECT data FROM `{self.table_id(MARKERS_TABLE)}` WHERE key = @key ORDER BY updated_at DESC LIMIT 1"
+        job_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("key", "STRING", key),
+        ])
+        try:
+            rows = list(self.client.query(query, job_config=job_config).result())
+        except NotFound:
+            return None
+        return json.loads(rows[0]["data"]) if rows else None
+
+    def write_marker(self, key: str, data: dict[str, Any]) -> None:
+        # Append-only: read_marker always takes the most recent row for `key`, so a write never
+        # needs to delete the previous one -- same single-writer assumption as the rest of this
+        # backend (write_day replaces a whole partition instead of upserting rows for the same
+        # reason).
+        row = {"key": key, "data": json.dumps(data, default=str), "updated_at": dt.datetime.now(dt.UTC)}
+        errors = self.client.insert_rows_json(self.table_id(MARKERS_TABLE), [row])
+        if errors:
+            raise RuntimeError(f"Failed to write marker {key!r}: {errors}")
+
     def setup(self) -> None:
         """Creates the dataset and the empty, day-partitioned feature tables, if they don't exist yet."""
         dataset = bigquery.Dataset(f"{settings.gcp_project_id}.{settings.bigquery_dataset}")
@@ -98,4 +134,10 @@ class BigQueryStorage(Storage):
             bq_table = bigquery.Table(self.table_id(table), schema=self.schema(table))
             bq_table.time_partitioning = bigquery.TimePartitioning(field=PARTITION_COLUMN)
             self.client.create_table(bq_table, exists_ok=True)
-        logger.info("Dataset %r ready with tables %s", dataset.dataset_id, ", ".join(SCHEMAS))
+        markers_table = bigquery.Table(self.table_id(MARKERS_TABLE), schema=[
+            bigquery.SchemaField("key", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("data", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
+        ])
+        self.client.create_table(markers_table, exists_ok=True)
+        logger.info("Dataset %r ready with tables %s", dataset.dataset_id, ", ".join([*SCHEMAS, MARKERS_TABLE]))

@@ -1,0 +1,12 @@
+import datetime as dt
+
+from winterload import DEFAULT_START_DATE, DEFAULT_END_DATE
+
+TRAIN_START = DEFAULT_START_DATE
+TRAIN_END = DEFAULT_END_DATE - dt.timedelta(days=365) - dt.timedelta(weeks=12)
+
+VALIDATION_START = TRAIN_END
+VALIDATION_END = DEFAULT_END_DATE - dt.timedelta(days=365)
+
+TEST_START = VALIDATION_END
+TEST_END = DEFAULT_END_DATE

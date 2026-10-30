@@ -4,8 +4,6 @@ implementing `Storage` and registering it in `get_storage`, plus a feature_store
 the matching Feast offline store.
 """
 
-from __future__ import annotations
-
 from winterload.config import settings
 from winterload.storage.base import Storage
 from winterload.storage.s3 import S3Storage, get_filesystem
