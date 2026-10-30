@@ -29,7 +29,7 @@ class OpenMeteoResult(TypedDict):
 
 
 HOURLY_VARIABLES: list[str] = list(OpenMeteoRecord.__annotations__)
-MODELS: list[str] = list(OpenMeteoModelResult.__annotations__)
+MODELS: list[str] = list(OpenMeteoResult.__annotations__)
 
 
 class OpenMeteo(object):
