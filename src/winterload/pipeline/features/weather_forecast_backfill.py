@@ -6,18 +6,14 @@ of Parquet files as one dataset) so a long backfill checkpoints as it goes: an i
 loses at most one day of API calls, and rerunning the same command resumes by skipping any day
 that already has a file.
 """
-
-from __future__ import annotations
-
 import datetime as dt
-import logging
 
 import pandas as pd
-from winterload import COORDINATES
-from winterload.pipeline.features import OpenMeteoBackfillPipeline
-from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo
 
-logger = logging.getLogger(__name__)
+from winterload import COORDINATES, Coordinate
+from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE
+from winterload.pipeline.features.openmeteo import OpenMeteoBackfillPipeline
+from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo, OpenMeteoResult, OpenMeteoModelResult
 
 ZURICH_TZ = "Europe/Zurich"
 
@@ -37,7 +33,8 @@ class WeatherForecastBackfill(OpenMeteoBackfillPipeline):
         """The ECMWF run that was actually available at 08:00 Zurich time on `day_minus_1`."""
         return dt.datetime.combine(target_day - dt.timedelta(days=1), dt.time(RUN_HOUR_UTC, 0))
 
-    def load_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict] = COORDINATES) -> list[dict]:
+    def load_day(self, client: OpenMeteo, target_day: dt.date,
+                 cities: list[Coordinate] = COORDINATES) -> dict[str, OpenMeteoResult]:
         """One row per (city, hour) for the 24 local hours of `target_day`."""
         run = self.get_forecast_run(target_day)
         rows = {}
@@ -47,14 +44,14 @@ class WeatherForecastBackfill(OpenMeteoBackfillPipeline):
 
         return rows
 
-    def transform_day(self, target_day: dt.date, rows: list[dict]) -> pd.DataFrame:
+    def transform_day(self, target_day: dt.date, openmeteo_result: OpenMeteoModelResult) -> pd.DataFrame:
         # Built from the calendar date, not `local_start + pd.Timedelta(days=1)`: Timedelta is a fixed
         # 24h physical duration, which overshoots/undershoots by an hour on DST transition days (23h in
         # spring, 25h in autumn) and causes an hour to be dropped or double-counted between two days.
         local_start = pd.Timestamp(target_day, tz=ZURICH_TZ)
         local_end = pd.Timestamp(target_day + dt.timedelta(days=1), tz=ZURICH_TZ)
 
-        df = pd.DataFrame(rows["hourly"])
+        df = pd.DataFrame(openmeteo_result["hourly"])
         day_hours = df.loc[(df["date"] >= local_start) & (df["date"] < local_end)].copy()
         day_hours["run_timestamp"] = pd.Timestamp(self.get_forecast_run(target_day), tz="UTC")
         day_hours["lead_time_hours"] = (day_hours["date"] - day_hours["run_timestamp"]).dt.total_seconds() / 3600
@@ -65,18 +62,24 @@ class WeatherForecastBackfill(OpenMeteoBackfillPipeline):
         return ["event_timestamp", "location_id", *HOURLY_VARIABLES, "run_timestamp", "lead_time_hours"]
 
 
-if __name__ == "__main__":
+def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--start", type=dt.date.fromisoformat, required=True)
-    parser.add_argument("-e", "--end", type=dt.date.fromisoformat, required=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-s", "--start", type=dt.date.fromisoformat, default=DEFAULT_START_DATE,
+        help=f"default: {DEFAULT_START_DATE.isoformat()}",
+    )
+    parser.add_argument(
+        "-e", "--end", type=dt.date.fromisoformat, default=DEFAULT_END_DATE,
+        help=f"default: {DEFAULT_END_DATE.isoformat()}",
+    )
     parser.add_argument("-f", "--force", action="store_true", help="re-fetch days that already have a file")
     args = parser.parse_args()
 
-    written, skipped, failed = WeatherForecastBackfill().build_range(args.start, args.end, force=args.force)
-    logger.info(
-        "Done: wrote %s new day(s), skipped %s already-backfilled day(s), "
-        "rejected %s day(s) after repeated failures",
-        written, skipped, failed,
-    )
+    WeatherForecastBackfill().run(
+        start_date=args.start, end_date=args.end, force=args.force)
+
+
+if __name__ == "__main__":
+    main()

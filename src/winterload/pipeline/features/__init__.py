@@ -4,44 +4,52 @@ mirrors). `run_all` discovers and runs every pipeline defined in this package; `
 winterload.pipeline` is its CLI entry point (see __main__.py).
 """
 
-from __future__ import annotations
-
 import datetime as dt
 import importlib
 import inspect
 import logging
 import pkgutil
 import time
-from abc import ABC, abstractmethod
-from typing import Callable
+from abc import abstractmethod
+from typing import Callable, TypedDict, Any
 
 import pandas as pd
-from winterload import COORDINATES
+from winterload.pipeline.base import Pipeline
 from winterload.storage import Storage, get_storage
-from winterload.source.openmeteo import OpenMeteo
 
-# The full span the proposal trains and evaluates on: "used from 01.2022 (start of the forecast
-# archive)" through the end of the held-out test year (23.09.2026) -- docs/proposal.pdf, §3 Volume
-# and §3.3 Leakage and split.
-DEFAULT_START_DATE = dt.date(2025, 9, 23)
+DEFAULT_START_DATE = dt.date(2022, 1, 1)
 DEFAULT_END_DATE = dt.date(2026, 9, 23)
 
-# Source APIs (ENTSO-E, Open-Meteo) rate-limit requests. One day is one batch: on failure (most
-# likely a rate limit) it's retried twice, 30s apart, and if it still fails the day is rejected --
-# no file is written for it, so it's neither counted as done nor skipped, and simply rerunning the
-# same backfill command later retries only that missing day instead of the whole range.
 RETRY_ATTEMPTS = 2
 RETRY_WAIT_SECONDS = 30
 
 __all__ = [
-    "BackfillPipeline", "DEFAULT_START_DATE", "DEFAULT_END_DATE", "RETRY_ATTEMPTS", "RETRY_WAIT_SECONDS",
-    "discover_pipelines", "run_all", "retry",
+    "BackfillPipeline", "DEFAULT_START_DATE", "DEFAULT_END_DATE",
+    "RETRY_ATTEMPTS", "RETRY_WAIT_SECONDS",
+    "discover_pipelines", "retry", "main",
 ]
 
-logger = logging.getLogger(__name__)
+class FeaturePipeline(Pipeline):
+    name: str = "Feature Pipeline"
+    order: int = 100
+
+    def run(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> None:
+        """"Run all pipelines in the right order and discover them, therefore override the run method here"""
+        self.logger.info("== FeaturePipeline ==")
+        self.logger.info("Starting LiveFeaturePipeline")
+        LiveFeaturePipeline.run_all()
+        self.logger.info("Starting Backfill")
+        BackfillPipeline.run_all(start_date, end_date, force=force)
+
+class LiveFeaturePipeline(FeaturePipeline):
+    name: str = "LiveFeaturePipeline"
+    order: int = 0
+
+    def run(self) -> None:
+        self.logger.info("TODO")
 
 
-class BackfillPipeline(ABC):
+class BackfillPipeline(FeaturePipeline):
     """A feature pipeline that (re)builds a date range of per-day Parquet files for the feature
     store. Subclass this once per feature view; `discover_pipelines`/`run_all` pick up every
     concrete subclass defined anywhere in this package automatically, so a new pipeline module
@@ -54,17 +62,8 @@ class BackfillPipeline(ABC):
     #: table in BigQuery -- see winterload.storage.
     table: str
 
-    def __init__(self, storage: Storage | None = None) -> None:
-        #: Where to write; defaults to the configured OFFLINE_STORAGE.
-        self.storage = storage or get_storage()
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        super().__init_subclass__(**kwargs)
-        if not cls.name:
-            cls.name = cls.__name__
-
     @abstractmethod
-    def build_range(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> tuple[int, int, int]:
+    def run(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> None:
         """Writes one Parquet file per day in [start_date, end_date], skipping days that already
         have a file unless `force`. Returns (written, skipped, failed)."""
 
@@ -75,98 +74,34 @@ class BackfillPipeline(ABC):
         return self.storage.write_day(self.table, df, target_day)
 
 
-class OpenMeteoBackfillPipeline(BackfillPipeline):
-    @abstractmethod
-    def load_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict]) -> dict:
-        """Load the open meteo data for a day, return a list of dicts per city"""
 
-    @abstractmethod
-    def transform_day(self, client: OpenMeteo, target_day: dt.date) -> list[dict]:
-        """Transform the open meteo data for a day"""
+def main() -> None:
+    import argparse
 
-    @abstractmethod
-    def feature_columns(self) -> list[str]:
-        """Returns a list of all feature columns"""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-s", "--start", type=dt.date.fromisoformat, default=DEFAULT_START_DATE,
+        help=f"default: {DEFAULT_START_DATE.isoformat()} (start of the forecast archive, docs/proposal.pdf)",
+    )
+    parser.add_argument(
+        "-e", "--end", type=dt.date.fromisoformat, default=DEFAULT_END_DATE,
+        help=f"default: {DEFAULT_END_DATE.isoformat()} (end of the held-out test year, docs/proposal.pdf)",
+    )
+    parser.add_argument(
+        "-p", "--pipeline", type=dt.date.fromisoformat, default=DEFAULT_END_DATE,
+        help=f"default: run all",
+    )
+    parser.add_argument("-f", "--force", action="store_true", help="re-fetch days that already have a file")
+    args = parser.parse_args()
 
-    def build_day(self, client: OpenMeteo, target_day: dt.date, cities: list[dict] = COORDINATES) -> pd.DataFrame:
-        city_rows = self.load_day(client, target_day, cities)
-        rows = []
-        for city, city_data in city_rows.items():
-            for model_name, model_data in city_data.items():
-                day_hours = self.transform_day(target_day, model_data)
-                day_hours["location_id"] = city
-                day_hours["model"] = model_name
-                rows.append(day_hours)
-
-        result = pd.concat(rows, ignore_index=True).rename(columns={"date": "event_timestamp"})
-        return result[self.feature_columns()]
-
-    def build_range(self, start_date: dt.date, end_date: dt.date,
-                    cities: list[dict] = COORDINATES, force: bool = False) -> tuple[int, int, int]:
-        # single-run data never changes once published -- cache it for the lifetime of a long backfill
-        client = OpenMeteo(cache_expire_after=30 * 86400)
-        written = skipped = failed = 0
-        day = start_date
-        while day <= end_date:
-            logger.info("%s: processing %s (%s to %s)", self.name, day, start_date, end_date)
-            exists = self.day_exists(day)
-            if exists is None:
-                failed += 1
-                day += dt.timedelta(days=1)
-                continue
-            if not force and exists:
-                skipped += 1
-                day += dt.timedelta(days=1)
-                continue
-            if retry(lambda: self.write_day(self.build_day(client, day, cities), day),
-                     f"Backfilling {day} ({len(cities)} cities)"):
-                written += 1
-            else:
-                failed += 1
-            day += dt.timedelta(days=1)
-        return written, skipped, failed
+    FeaturePipeline.run_all(args.start, args.end, force=args.force)
 
 
-def discover_pipelines() -> list[type[BackfillPipeline]]:
-    for module_info in pkgutil.iter_modules(__path__, prefix=f"{__name__}."):
-        if module_info.name.rsplit(".", 1)[-1] == "__main__":
-            continue
-        importlib.import_module(module_info.name)
-
-    def all_subclasses(cls: type) -> set[type]:
-        return set(cls.__subclasses__()).union(
-            sub for subclass in cls.__subclasses__() for sub in all_subclasses(subclass)
-        )
-
-    return [cls for cls in all_subclasses(BackfillPipeline) if not inspect.isabstract(cls)]
-
-
-def run_all(
-        start_date: dt.date = DEFAULT_START_DATE, end_date: dt.date = DEFAULT_END_DATE, force: bool = False,
-        storage: Storage | None = None,
-) -> None:
-    """Runs every discovered pipeline's `build_range` over [start_date, end_date], writing to
-    `storage` (default: the configured OFFLINE_STORAGE)."""
-    pipelines = discover_pipelines()
-    if not pipelines:
-        logger.warning("No BackfillPipeline subclasses found under winterload.pipeline")
-        return
-
-    for cls in pipelines:
-        pipeline = cls(storage)
-        logger.info("=== %s: %s to %s ===", pipeline.name, start_date, end_date)
-        written, skipped, failed = pipeline.build_range(start_date, end_date, force=force)
-        logger.info(
-            "%s: wrote %s new day(s), skipped %s already-backfilled day(s), "
-            "rejected %s day(s) after repeated failures",
-            pipeline.name, written, skipped, failed,
-        )
-
-
-def retry(callable: Callable[[], None], identifier: str = "__retry__", retry_attempts: int = RETRY_ATTEMPTS,
+def retry(callable: Callable[[], Any], identifier: str = "__retry__", retry_attempts: int = RETRY_ATTEMPTS,
           retry_wait_seconds: int = RETRY_WAIT_SECONDS) -> bool:
     """Runs `callable` retrying up to retry_attempts times (retry_wait_seconds
     apart) if it raises. Returns False once all attempts are exhausted, rejecting the day."""
+    logger = logging.getLogger("retry")
     for attempt in range(retry_attempts + 1):
         try:
             callable()
