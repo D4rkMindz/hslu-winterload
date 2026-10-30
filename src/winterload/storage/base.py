@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import datetime as dt
 from abc import ABC, abstractmethod
+from typing import Any
 
 import pandas as pd
 from feast.data_source import DataSource
@@ -27,3 +26,18 @@ class Storage(ABC):
     @abstractmethod
     def source(self, table: str) -> DataSource:
         """The Feast data source reading `table`, for the feature views in definitions.py."""
+
+    @abstractmethod
+    def read_range(self, table: str, start: dt.date, end: dt.date) -> pd.DataFrame:
+        """Reads `table`'s rows with `event_timestamp` in `[start, end)` as one DataFrame. Used by
+        winterload.pipeline.training to assemble train/validation/test dataframes directly from
+        the feature tables, without going through Feast's point-in-time join."""
+
+    @abstractmethod
+    def read_marker(self, key: str) -> dict[str, Any] | None:
+        """Reads a small named JSON marker (e.g. `final_test_year_access`), or None if it was
+        never written."""
+
+    @abstractmethod
+    def write_marker(self, key: str, data: dict[str, Any]) -> None:
+        """Writes `data` as a small named JSON marker, replacing any earlier value."""
