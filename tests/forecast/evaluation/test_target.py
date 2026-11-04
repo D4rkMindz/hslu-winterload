@@ -1,5 +1,5 @@
 import pytest
-from winterload.forecast.target import compute_target_mape
+from winterload.forecast.evaluation.target import compute_target_mape
 
 
 def test_compute_target_mape_default_ten_percent_relative_improvement():

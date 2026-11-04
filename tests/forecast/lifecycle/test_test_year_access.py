@@ -1,7 +1,7 @@
 import datetime as dt
 
 import pytest
-from winterload.forecast.test_year_access import TestYearAccessPolicy, TestYearAlreadyAccessed
+from winterload.forecast.lifecycle.test_year_access import TestYearAccessPolicy, TestYearAlreadyAccessed
 
 NOW = dt.datetime(2026, 10, 29, tzinfo=dt.UTC)
 

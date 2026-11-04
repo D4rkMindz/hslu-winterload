@@ -1,6 +1,7 @@
+from winterload.forecast.evaluation.target import compute_target_mape
 from winterload.forecast.model.preliminary import PreliminaryModel
-from winterload.forecast.target import compute_target_mape
-from winterload.pipeline.training.repository import load_train_and_validation
+from winterload.repository.factory import champion_repository
+from winterload.repository.training_frame import load_train_and_validation
 
 from winterload.pipeline.training import TrainingPipeline
 
@@ -14,7 +15,7 @@ class PreliminaryTrainingPipeline(TrainingPipeline):
     """
 
     def run(self) -> None:
-        train, validation = load_train_and_validation()
+        train, validation = load_train_and_validation(self.storage)
         self.logger.info("TRAINING: %s train row(s), %s validation row(s)", len(train), len(validation))
 
         model = PreliminaryModel().fit(train)
@@ -28,3 +29,10 @@ class PreliminaryTrainingPipeline(TrainingPipeline):
             preliminary_val_mape * 100, target_mape * 100,
             (1 - target_mape / preliminary_val_mape) * 100 if preliminary_val_mape else 0,
         )
+
+        registry = champion_repository()
+        with registry.run(self.name):
+            registry.log(
+                params={"train_rows": len(train), "validation_rows": len(validation)} | model.estimator.get_params(),
+                metrics={"validation_mape": preliminary_val_mape, "target_mape": target_mape},
+            )

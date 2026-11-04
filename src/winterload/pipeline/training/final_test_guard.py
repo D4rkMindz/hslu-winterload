@@ -1,16 +1,16 @@
 """Orchestrates the single legitimate read of the final held-out test year: reads the access
-marker, asks winterload.forecast.test_year_access whether this access is allowed, loads the data
-via winterload.pipeline.training.repository, writes the marker, logs. No business rule lives here
--- see winterload.forecast.test_year_access.TestYearAccessPolicy for that.
+marker, asks winterload.forecast.lifecycle.test_year_access whether this access is allowed, loads the data
+via winterload.repository.training_frame, writes the marker, logs. No business rule lives here
+-- see winterload.forecast.lifecycle.test_year_access.TestYearAccessPolicy for that.
 """
 
 import datetime as dt
 import logging
 
 import pandas as pd
-from winterload.forecast.splits import TEST_END, TEST_START
-from winterload.forecast.test_year_access import TestYearAccessPolicy
-from winterload.pipeline.training.repository import load_dataframe
+from winterload.forecast.evaluation.splits import TEST_END, TEST_START
+from winterload.forecast.lifecycle.test_year_access import TestYearAccessPolicy
+from winterload.repository.training_frame import load_dataframe
 from winterload.storage import Storage, get_storage
 
 logger = logging.getLogger(__name__)
