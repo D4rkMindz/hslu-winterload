@@ -1,7 +1,7 @@
 """The feature pipelines: one `BackfillPipeline` per feature view, each writing one Parquet file
 per day so a long backfill is resumable (see pipeline.weather_backfill for the layout this
-mirrors). `run_all` discovers and runs every pipeline defined in this package; `python -m
-winterload.pipeline` is its CLI entry point (see __main__.py).
+mirrors). `run_all` discovers and runs every pipeline defined in this package;
+`python -m winterload.pipeline` is its CLI entry point (see __main__.py).
 """
 
 import datetime as dt

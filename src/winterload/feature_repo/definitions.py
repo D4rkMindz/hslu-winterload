@@ -4,6 +4,7 @@ from feast import Entity, FeatureView, Field
 from feast.types import Float32, String
 from feast.value_type import ValueType
 
+from winterload.source.openmeteo import FORECAST_MODEL
 from winterload.storage import get_storage
 
 # weather observations
@@ -18,15 +19,17 @@ storage = get_storage()
 
 weather_forecast_source = storage.source("weather_forecast")
 
-weather_measurements_source = storage.source("weather_measurements")
+# The table also holds ERA5, which only scores forecasts. Two rows per hour and city would make
+# Feast's point-in-time join pick one at random.
+weather_measurements_source = storage.source("weather_measurements", model=FORECAST_MODEL)
 
 energy_load_source = storage.source("energy_load")
 
 # Shared by weather_forecast_stats and weather_measurements_stats; matches
 # winterload.source.openmeteo.HOURLY_VARIABLES so forecast and measurement rows are directly
-# comparable. weather_forecast_stats holds the 16-39h-ahead forecast reconstructed per-run via
-# OpenMeteo.get_weather_backfill() (training/backtest) or read live via get_weather_forecast()
-# (production) -- never the observed value, which would leak the future into training.
+# comparable. weather_forecast_stats holds the 28-58h-ahead forecast of the run that
+# winterload.forecast.features.dataset.weather_run picks, fetched via OpenMeteo.get_weather_backfill() --
+# never the observed value, which would leak the future into training.
 weather_schema = [
     Field(name="temperature_2m", dtype=Float32),
     Field(name="cloud_cover", dtype=Float32),

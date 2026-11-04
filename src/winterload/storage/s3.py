@@ -32,6 +32,20 @@ def get_filesystem(path: str) -> AbstractFileSystem:
     return fsspec.filesystem("local")
 
 
+def ensure_bucket(path: str) -> None:
+    """Creates the bucket of an s3:// `path` if it doesn't exist yet. Unlike AWS S3, SeaweedFS's S3
+    gateway still requires the bucket to exist before anything can be written to it, and s3fs's
+    S3FileSystem.mkdir() on a bucket-only path does that. A local `path` needs nothing."""
+    if not path.startswith("s3://"):
+        logger.info("%r is not an s3:// path, nothing to do", path)
+        return
+    bucket = urlparse(path).netloc
+    fs = get_filesystem(path)
+    if not fs.exists(bucket):
+        fs.mkdir(bucket)
+    logger.info("Bucket %r ready on %s", bucket, settings.s3_endpoint)
+
+
 class S3Storage(Storage):
     def day_path(self, table: str, target_day: dt.date) -> str:
         return f"{settings.feast_store_path}/{table}/{target_day.isoformat()}.parquet"
@@ -46,8 +60,9 @@ class S3Storage(Storage):
         pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path, filesystem=filesystem)
         return path
 
-    def source(self, table: str) -> FileSource:
-        # A FileSource reads the directory of per-day Parquet files as one dataset.
+    def source(self, table: str, model: str | None = None) -> FileSource:
+        # A FileSource reads the directory of per-day Parquet files as one dataset. It can't filter
+        # rows, so `model` has no effect here, and Feast sees every model of a table on this backend.
         return FileSource(
             path=f"{settings.feast_store_path}/{table}",
             timestamp_field="event_timestamp",
@@ -86,16 +101,5 @@ class S3Storage(Storage):
             json.dump(data, f, default=str)
 
     def setup(self) -> None:
-        """Creates the S3 bucket backing the Feast offline store on SeaweedFS, if it doesn't exist yet.
-
-        Unlike AWS S3, SeaweedFS's S3 gateway still requires the bucket to exist before anything can
-        be written to it -- s3fs's S3FileSystem.mkdir() on a bucket-only path does that.
-        """
-        if not settings.feast_store_path.startswith("s3://"):
-            logger.info("FEAST_OFFLINE_STORE_PATH=%r is not an s3:// path, nothing to do", settings.feast_store_path)
-            return
-        bucket = urlparse(settings.feast_store_path).netloc
-        fs = get_filesystem(settings.feast_store_path)
-        if not fs.exists(bucket):
-            fs.mkdir(bucket)
-        logger.info("Bucket %r ready on %s", bucket, settings.s3_endpoint)
+        """Creates the S3 bucket backing the Feast offline store on SeaweedFS, if it doesn't exist yet."""
+        ensure_bucket(settings.feast_store_path)

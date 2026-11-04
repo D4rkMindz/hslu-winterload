@@ -24,8 +24,9 @@ class Storage(ABC):
         Returns where it was written to, for logging."""
 
     @abstractmethod
-    def source(self, table: str) -> DataSource:
-        """The Feast data source reading `table`, for the feature views in definitions.py."""
+    def source(self, table: str, model: str | None = None) -> DataSource:
+        """The Feast data source reading `table`, for the feature views in definitions.py. Pass
+        `model` when the table holds several models, so one hour and city stay one row."""
 
     @abstractmethod
     def read_range(self, table: str, start: dt.date, end: dt.date) -> pd.DataFrame:

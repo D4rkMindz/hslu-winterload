@@ -37,6 +37,7 @@ SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
     "weather_forecast": [
         bigquery.SchemaField("event_timestamp", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("location_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("model", "STRING"),
         *_weather_fields,
         bigquery.SchemaField("run_timestamp", "TIMESTAMP"),
         bigquery.SchemaField("lead_time_hours", "FLOAT64"),
@@ -44,6 +45,7 @@ SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
     "weather_measurements": [
         bigquery.SchemaField("event_timestamp", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("location_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("model", "STRING"),
         *_weather_fields,
     ],
 }
@@ -89,8 +91,11 @@ class BigQueryStorage(Storage):
         self.client.load_table_from_dataframe(df, destination, job_config=job_config).result()
         return destination
 
-    def source(self, table: str) -> BigQuerySource:
-        return BigQuerySource(name=table, table=self.table_id(table), timestamp_field="event_timestamp")
+    def source(self, table: str, model: str | None = None) -> BigQuerySource:
+        if model is None:
+            return BigQuerySource(name=table, table=self.table_id(table), timestamp_field="event_timestamp")
+        query = f"SELECT * FROM `{self.table_id(table)}` WHERE model = '{model}'"
+        return BigQuerySource(name=table, query=query, timestamp_field="event_timestamp")
 
     def read_range(self, table: str, start: dt.date, end: dt.date) -> pd.DataFrame:
         query = f"""

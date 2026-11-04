@@ -25,9 +25,12 @@ class WeatherMeasurementsBackfill(OpenMeteoBackfillPipeline):
                  cities: list[Coordinate] = COORDINATES) -> DayResult:
         rows = {}
 
+        # ERA5 lags by days. Newer days get empty ERA5 rows until a rerun with --force.
         for city in cities:
-            rows[city["name"]] = client.get_weather_historic(city["lat"], city["lon"],
-                                                             start_date=target_day, end_date=target_day)
+            rows[city["name"]] = (
+                client.get_weather_historic(city["lat"], city["lon"], start_date=target_day, end_date=target_day)
+                | client.get_weather_reanalysis(city["lat"], city["lon"], start_date=target_day, end_date=target_day)
+            )
 
         return rows
 
@@ -35,7 +38,7 @@ class WeatherMeasurementsBackfill(OpenMeteoBackfillPipeline):
         return pd.DataFrame(openmeteo_result["hourly"])
 
     def feature_columns(self) -> list[str]:
-        return ["event_timestamp", "location_id", *HOURLY_VARIABLES]
+        return ["event_timestamp", "location_id", "model", *HOURLY_VARIABLES]
 
 
 def main() -> None:

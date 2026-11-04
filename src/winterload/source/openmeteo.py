@@ -6,6 +6,7 @@ from typing import Any, TypedDict
 
 import openmeteo_requests
 import pandas as pd
+import requests
 import requests_cache
 from openmeteo_sdk import Model
 from retry_requests import retry
@@ -28,14 +29,24 @@ class OpenMeteoResult(TypedDict):
     ecmwf_ifs: OpenMeteoModelResult
 
 
+class OpenMeteoRunMetadata(TypedDict):
+    last_run_initialisation_time: int
+    last_run_availability_time: int
+
+
 HOURLY_VARIABLES: list[str] = list(OpenMeteoRecord.__annotations__)
 MODELS: list[str] = list(OpenMeteoResult.__annotations__)
+# The Single Runs and Historical Forecast APIs serve FORECAST_MODEL. The archive API serves ERA5
+# reanalysis, which scores forecasts because no forecast feeds it.
+FORECAST_MODEL: str = MODELS[0]
+REANALYSIS_MODEL = "era5"
 
 
 class OpenMeteo(object):
     HISTORICAL_FORECAST_URL = "https://historical-forecast-api.open-meteo.com"
     SINGLE_RUNS_URL = "https://single-runs-api.open-meteo.com"
     FORECAST_URL = "https://api.open-meteo.com"
+    ARCHIVE_URL = "https://archive-api.open-meteo.com"
 
     def __init__(self, cache_expire_after: int = 10):
         cache_session = requests_cache.CachedSession(".cache", expire_after=cache_expire_after)
@@ -50,6 +61,13 @@ class OpenMeteo(object):
             if value == code:
                 return name
         return ""
+
+    @staticmethod
+    def get_run_metadata(host_url: str, model: str = MODELS[0]) -> OpenMeteoRunMetadata:
+        """When `host_url` last published `model`, as Unix timestamps."""
+        response = requests.get(f"{host_url}/data/{model}/static/meta.json", timeout=30)
+        response.raise_for_status()
+        return response.json()
 
     def get_weather_backfill(self, lat: float, lon: float, run: datetime) -> OpenMeteoResult:
         self.logger.info("Getting backfill weather for run %s at (%s, %s)", run.isoformat(), lat, lon)
@@ -87,6 +105,19 @@ class OpenMeteo(object):
             "end_date": end_date.strftime("%Y-%m-%d"),
         }
         responses = self.client.weather_api(f"{self.HISTORICAL_FORECAST_URL}/v1/forecast", params=params, timeout=120)
+        return self._parse_by_model(responses)
+
+    def get_weather_reanalysis(self, lat: float, lon: float, start_date: date, end_date: date) -> OpenMeteoResult:
+        self.logger.info("Getting ERA5 reanalysis between %s and %s at (%s,%s)", start_date, end_date, lat, lon)
+        params = {
+            "latitude": str(lat),
+            "longitude": str(lon),
+            "hourly": HOURLY_VARIABLES,
+            "models": [REANALYSIS_MODEL],
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+        }
+        responses = self.client.weather_api(f"{self.ARCHIVE_URL}/v1/archive", params=params, timeout=120)
         return self._parse_by_model(responses)
 
     def _parse_by_model(self, responses) -> OpenMeteoResult:
