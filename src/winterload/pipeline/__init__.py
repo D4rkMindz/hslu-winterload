@@ -14,9 +14,11 @@ from winterload.pipeline.features.energy_load_backfill import EnergyLoadBackfill
 from winterload.pipeline.features.weather_forecast_backfill import WeatherForecastBackfill
 from winterload.pipeline.features.weather_measurements_backfill import WeatherMeasurementsBackfill
 from winterload.pipeline.inference import InferencePipeline
+from winterload.pipeline.monitoring import MonitoringPipeline
 from winterload.pipeline.training import TrainingPipeline
 
 #: Run order for a plain `winterload` invocation; `-p` may instead pick any subset of these names.
+#: Monitoring stays out: it runs on its own daily schedule with `-p monitoring`.
 DEFAULT_STAGE_ORDER = ["features", "training", "inference"]
 
 
@@ -56,6 +58,7 @@ def main() -> None:
         "features.weather.backfill": lambda: WeatherMeasurementsBackfill().run(args.start, args.end, force=args.force),
         "training": lambda: TrainingPipeline.run_all(),
         "inference": lambda: InferencePipeline.run_all(),
+        "monitoring": lambda: MonitoringPipeline.run_all(),
     }
     selected = args.pipeline or DEFAULT_STAGE_ORDER
     run_all([stages[name] for name in selected])
