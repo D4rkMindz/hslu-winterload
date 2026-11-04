@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     bigquery_location: str = Field(default="europe-west6", alias="BIGQUERY_LOCATION")
 
     s3_endpoint: str | None = Field(default=None, alias="S3_ENDPOINT")
+    # Where notebooks and monitoring keep generated results, see winterload.repository.results.
+    results_path: str = Field(default="s3://winterload/results", alias="RESULTS_PATH")
+
+    # 5001 on the host, because macOS AirPlay occupies 5000. See docker/mlflow/docker-compose.yaml.
+    mlflow_tracking_uri: str = Field(default="http://localhost:5001", alias="MLFLOW_TRACKING_URI")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
