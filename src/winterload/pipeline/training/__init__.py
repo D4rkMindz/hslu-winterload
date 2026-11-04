@@ -1,7 +1,9 @@
-import logging
-
-logger = logging.getLogger(__name__)
+from winterload.pipeline.base import Pipeline
 
 
-def run_all():
-    logger.info("TRAINING: TODO")
+class TrainingPipeline(Pipeline):
+    order: int = 200
+
+
+def main() -> None:
+    TrainingPipeline.run_all()

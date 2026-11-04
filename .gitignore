@@ -20,3 +20,13 @@ __pycache__
 *.tfstate
 *.tfstate.*
 crash.log
+
+.claude
+
+# MLflow keeps runs and models in its Docker volume. Nothing of them belongs in git.
+mlruns/
+mlartifacts/
+/models/
+*.pkl
+*.joblib
+*.skops

@@ -1,6 +1,7 @@
 include:
   - docker/networks.yaml
   - docker/seaweedfs/docker-compose.yaml
+  - docker/mlflow/docker-compose.yaml
 
 services:
   winterload:
@@ -11,6 +12,8 @@ services:
     env_file:
       - .env
       - .env.docker
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes:
       # GCP service account key for OFFLINE_STORAGE=bigquery (GOOGLE_APPLICATION_CREDENTIALS in .env.docker)
       - ./secrets:/app/secrets:ro
@@ -19,4 +22,6 @@ services:
       - winterload-production
     depends_on:
       seaweedfs:
+        condition: service_healthy
+      mlflow:
         condition: service_healthy

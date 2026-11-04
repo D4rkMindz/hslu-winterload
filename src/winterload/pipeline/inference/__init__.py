@@ -1,7 +1,17 @@
-import logging
-
-logger = logging.getLogger(__name__)
+from winterload.pipeline.base import Pipeline
 
 
-def run_all():
-    logger.info("INFERENCE: TODO")
+class InferencePipeline(Pipeline):
+    order: int = 300
+
+
+class DummyInferencePipeline(InferencePipeline):
+    name = 'demo_inference'
+    order: int = 310
+
+    def run(self) -> None:
+        self.logger.info("INFERENCE: TODO")
+
+
+def main() -> None:
+    InferencePipeline.run_all()

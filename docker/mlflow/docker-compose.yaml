@@ -1,0 +1,30 @@
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.17.2
+    container_name: winterload-mlflow
+    restart: unless-stopped
+    command:
+      - mlflow
+      - server
+      - --host=0.0.0.0
+      - --port=5000
+      - --backend-store-uri=sqlite:////mlflow/mlflow.db
+      - --artifacts-destination=/mlflow/artifacts
+      # MLflow 3 rejects requests whose Host header is not on this list.
+      - --allowed-hosts=localhost:*,mlflow:*
+    ports:
+      - "5001:5000" # macOS AirPlay occupies 5000 on the host
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - winterload-development
+      - winterload-production
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:5000/health')" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  mlflow_data:

@@ -4,11 +4,9 @@ implementing `Storage` and registering it in `get_storage`, plus a feature_store
 the matching Feast offline store.
 """
 
-from __future__ import annotations
-
 from winterload.config import settings
 from winterload.storage.base import Storage
-from winterload.storage.s3 import S3Storage, get_filesystem
+from winterload.storage.s3 import S3Storage, ensure_bucket, get_filesystem
 
 __all__ = ["Storage", "get_filesystem", "get_storage", "setup"]
 
@@ -26,3 +24,5 @@ def get_storage(backend: str | None = None) -> Storage:
 
 def setup() -> None:
     get_storage().setup()
+    # Results stay on S3 whichever backend holds the features.
+    ensure_bucket(settings.results_path)
