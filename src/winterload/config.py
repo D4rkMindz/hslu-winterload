@@ -23,9 +23,17 @@ load_dotenv(PROJECT_ROOT / ".env")
 # this, logger.info/.debug calls anywhere in the app are silently dropped (Python's logging has no
 # handler by default). Set at INFO until `settings.log_level` is known below, so a config error
 # itself (logged, not printed) is still visible even if LOG_LEVEL ends up invalid.
+#
+# Kestra (like most log collectors) counts every stderr line as an error, so INFO and DEBUG go to stdout
+# and only WARNING and up to stderr.
+_stdout_handler = logging.StreamHandler(sys.stdout)
+_stdout_handler.addFilter(lambda record: record.levelno < logging.WARNING)
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setLevel(logging.WARNING)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    handlers=[_stdout_handler, _stderr_handler],
 )
 logger = logging.getLogger(__name__)
 

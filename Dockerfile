@@ -6,6 +6,11 @@ LABEL authors="Björn Pfoster"
 RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
+# LightGBM loads the OpenMP runtime (libgomp.so.1), which the slim base image leaves out
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
 # Install the project into `/app`
 WORKDIR /app
 
