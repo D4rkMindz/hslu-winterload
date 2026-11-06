@@ -27,11 +27,11 @@ variables:
 tasks:
   - id: features
     type: io.kestra.plugin.scripts.shell.Commands
-    containerImage: winterload
+    containerImage: "{{ envs.winterload_image ?? 'winterload' }}"
     # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-      pullPolicy: NEVER
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.secrets_dir }}:/app/secrets:ro"
@@ -64,10 +64,10 @@ tasks:
 
   - id: inference
     type: io.kestra.plugin.scripts.shell.Commands
-    containerImage: winterload
+    containerImage: "{{ envs.winterload_image ?? 'winterload' }}"
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-      pullPolicy: NEVER
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
       volumes:
         - "{{ envs.secrets_dir }}:/app/secrets:ro"
