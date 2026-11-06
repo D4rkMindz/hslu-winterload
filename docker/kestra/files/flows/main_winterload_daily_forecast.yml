@@ -1,0 +1,103 @@
+id: daily_forecast
+namespace: winterload
+description: |
+  Daily at 07:00 Zurich: brings the features up to date for the 08:00 forecast, then runs inference.
+
+  The backfills skip days they already hold. The energy load and the weather measurements get re-fetched
+  with -f for the last `lookback_days`, because ENTSO-E revises the load and ERA5 lags by days. The weather
+  forecasts don't: a published run never changes. A later lookback_days catches up after downtime, and so
+  does a backfill of the schedule trigger.
+
+concurrency:
+  limit: 1
+
+inputs:
+  - id: lookback_days
+    type: INT
+    defaults: 7
+    description: Days before the run day that the backfills cover
+
+variables:
+  # The run day in Zurich: the scheduled day, or today on a manual run
+  start: "{{ (trigger.date ?? execution.startDate) | dateAdd(-inputs.lookback_days, 'DAYS') | date('yyyy-MM-dd', timeZone='Europe/Zurich') }}"
+  yesterday: "{{ (trigger.date ?? execution.startDate) | dateAdd(-1, 'DAYS') | date('yyyy-MM-dd', timeZone='Europe/Zurich') }}"
+  # The day the 08:00 forecast is for
+  tomorrow: "{{ (trigger.date ?? execution.startDate) | dateAdd(1, 'DAYS') | date('yyyy-MM-dd', timeZone='Europe/Zurich') }}"
+
+tasks:
+  - id: features
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: winterload
+    # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+    commands:
+      # Kestra's working directory isn't writable for the image's nonroot user, and the Open-Meteo client
+      # keeps its cache in the current directory.
+      - cd /app
+      - winterload -p features.forecast.backfill -s {{ render(vars.start) }} -e {{ render(vars.tomorrow) }}
+      - winterload -p features.energy.backfill -s {{ render(vars.start) }} -e {{ render(vars.yesterday) }} -f
+      - winterload -p features.weather.backfill -s {{ render(vars.start) }} -e {{ render(vars.yesterday) }} -f
+
+  - id: inference
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: winterload
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+    commands:
+      - cd /app
+      - winterload -p inference
+
+triggers:
+  - id: daily
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 7 * * *"
+    timezone: Europe/Zurich
+    # After downtime, run once for the latest missed day: the lookback covers the days before it.
+    recoverMissedSchedules: LAST

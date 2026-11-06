@@ -1,0 +1,53 @@
+id: daily_monitoring
+namespace: winterload
+description: |
+  Daily at 08:00 Zurich, when the forecast is issued. `retrain_monitor` scores the model and the
+  seasonal-naive baseline on the last 7 days and runs champion/challenger when the trigger fires.
+  `publication_probe` logs how late the load and weather sources publish.
+
+concurrency:
+  limit: 1
+
+tasks:
+  - id: monitoring
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: winterload
+    # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+    commands:
+      # Kestra's working directory isn't writable for the image's nonroot user
+      - cd /app
+      - winterload -p monitoring
+
+triggers:
+  - id: daily
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 8 * * *"
+    timezone: Europe/Zurich
+    # The probe measures the sources when it runs. A catch-up run after downtime would log delays that the
+    # 08:00 forecast never saw, so missed runs are skipped.
+    recoverMissedSchedules: NONE
