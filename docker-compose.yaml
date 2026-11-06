@@ -2,6 +2,7 @@ include:
   - docker/networks.yaml
   - docker/seaweedfs/docker-compose.yaml
   - docker/mlflow/docker-compose.yaml
+  - docker/kestra/docker-compose.yaml
 
 services:
   winterload:

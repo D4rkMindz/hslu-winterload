@@ -1,0 +1,50 @@
+id: weekly_training
+namespace: winterload
+description: |
+  Mondays at 06:00 Zurich, before daily_forecast, so Monday's forecast already uses the new champion.
+  Trains the preliminary model, then runs champion/challenger on the most recent 8 weeks.
+
+concurrency:
+  limit: 1
+
+tasks:
+  - id: training
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: winterload
+    # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+    commands:
+      # Kestra's working directory isn't writable for the image's nonroot user
+      - cd /app
+      - winterload -p training
+
+triggers:
+  - id: weekly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 6 * * 1"
+    timezone: Europe/Zurich
+    recoverMissedSchedules: LAST

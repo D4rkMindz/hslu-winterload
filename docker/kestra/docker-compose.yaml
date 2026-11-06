@@ -1,0 +1,78 @@
+services:
+  kestra-db:
+    image: postgres:18
+    container_name: winterload-kestra-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KESTRA_POSTGRES_DB:-kestra}
+      POSTGRES_USER: ${KESTRA_POSTGRES_USER:-kestra}
+      POSTGRES_PASSWORD: ${KESTRA_POSTGRES_PASSWORD:?Set KESTRA_POSTGRES_PASSWORD in .env}
+    volumes:
+      # Postgres 18 keeps its data in a versioned subdirectory of /var/lib/postgresql
+      - kestra_db:/var/lib/postgresql
+    networks:
+      - winterload-development
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  kestra:
+    image: kestra/kestra:v1.1
+    container_name: winterload-kestra
+    restart: unless-stopped
+    # Kestra waits up to 5m for running tasks before it stops. Wait a little longer than that.
+    stop_grace_period: 6m
+    # Root is for local development only: Kestra starts the task containers through the host's Docker socket.
+    user: root
+    command: server standalone --config /etc/kestra/application.yaml
+    ports:
+      - "127.0.0.1:${KESTRA_PORT:-8080}:8080"
+    environment:
+      DATASOURCES_POSTGRES_URL: jdbc:postgresql://kestra-db:5432/${KESTRA_POSTGRES_DB:-kestra}
+      DATASOURCES_POSTGRES_DRIVERCLASSNAME: org.postgresql.Driver
+      DATASOURCES_POSTGRES_USERNAME: ${KESTRA_POSTGRES_USER:-kestra}
+      DATASOURCES_POSTGRES_PASSWORD: ${KESTRA_POSTGRES_PASSWORD:?Set KESTRA_POSTGRES_PASSWORD in .env}
+      KESTRA_LOGIN_USER: ${KESTRA_UI_USER:?Set KESTRA_UI_USER in .env}
+      KESTRA_LOGIN_PASSWORD: ${KESTRA_UI_PASSWORD:?Set KESTRA_UI_PASSWORD in .env}
+      KESTRA_PORT: ${KESTRA_PORT:-8080}
+
+      # Every ENV_<NAME> below is {{ envs.<name> }} in the flows, which hand it to the winterload task
+      # containers. Those containers get no .env file, so each variable winterload.config reads has to
+      # come through here. Values come from .env, overridden by .env.docker (see Makefile).
+      ENV_NETWORK: winterload-development
+      ENV_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENV_ENTSOE_API_KEY: ${ENTSOE_API_KEY:-}
+      ENV_FEAST_PROJECT: ${FEAST_PROJECT:-winterload}
+      ENV_FEAST_OFFLINE_STORE_PATH: ${FEAST_OFFLINE_STORE_PATH:-s3://winterload/offline}
+      ENV_OFFLINE_STORAGE: ${OFFLINE_STORAGE:-s3}
+      ENV_GCP_PROJECT_ID: ${GCP_PROJECT_ID:-winterload}
+      ENV_BIGQUERY_DATASET: ${BIGQUERY_DATASET:-winterload}
+      ENV_BIGQUERY_LOCATION: ${BIGQUERY_LOCATION:-europe-west6}
+      # Docker service names, as for the winterload service in docker-compose.yaml
+      ENV_S3_ENDPOINT: ${S3_ENDPOINT:-http://seaweedfs:8333}
+      ENV_S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      ENV_S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      ENV_S3_DEFAULT_REGION: ${S3_DEFAULT_REGION:-us-east-1}
+      ENV_RESULTS_PATH: ${RESULTS_PATH:-s3://winterload/results}
+      ENV_MLFLOW_TRACKING_URI: http://mlflow:5000
+      # OFFLINE_STORAGE=bigquery only. The task containers mount the secrets directory from the host,
+      # so this has to be a host path: run `make up` (or docker compose) from the project root.
+      ENV_SECRETS_DIR: ${PWD}/secrets
+      ENV_GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/gcp-service-account.json}
+    volumes:
+      - kestra_files:/app/storage
+      - ./application.yaml:/etc/kestra/application.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./files:/files
+    networks:
+      - winterload-development
+      - winterload-production
+    depends_on:
+      kestra-db:
+        condition: service_healthy
+
+volumes:
+  kestra_db:
+  kestra_files:

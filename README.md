@@ -131,6 +131,29 @@ The registered model `winterload-load-forecast` has two aliases. `champion` is t
 inference. `champion_eval` stops at the cutoff of the run that promoted it, so later runs can compare against it on
 hours it has not seen.
 
+## Orchestrator
+
+[Kestra](https://kestra.io/) runs the pipeline on a schedule. `make up` starts it, and its UI is at
+[localhost:8080](http://localhost:8080). Log in with `KESTRA_UI_USER` and `KESTRA_UI_PASSWORD` from `.env`.
+
+The flows live in `docker/kestra/files/flows`. Kestra loads them on start and picks up changes to the files, and flows saved in
+the UI land in the same folder:
+
+| Flow | Schedule (Zurich time) | Runs |
+|---|---|---|
+| `daily_forecast` | Daily 07:00 | The three feature backfills over the last 7 days, then `-p inference` |
+| `daily_monitoring` | Daily 08:00 | `-p monitoring` |
+| `weekly_training` | Mondays 06:00 | `-p training` |
+
+`daily_forecast` fetches the weather forecasts up to tomorrow, the day the 08:00 forecast is for. It re-fetches the load and the
+weather measurements up to yesterday with `-f`, because ENTSO-E revises the load and ERA5 lags by days. After downtime, run it
+by hand with a larger `lookback_days`.
+
+Each task starts a container from the local `winterload` image, so run `make build` after changing the code. These containers
+get no `.env` file. `docker/kestra/docker-compose.yaml` passes the settings to Kestra as `ENV_*` variables, from `.env` and
+`.env.docker`, and the flows read them as `{{ envs.<name> }}`: `ENV_S3_ENDPOINT` becomes `{{ envs.s3_endpoint }}`. A new
+setting needs an `ENV_*` line there and an `env:` entry in each flow task.
+
 # Pipeline
 
 Run the pipeline using
@@ -139,7 +162,8 @@ Run the pipeline using
 uv run winterload
 ```
 
-`-p` picks one stage. The monitoring stage stays out of the default run, because it runs on its own daily schedule:
+Kestra runs it on a schedule, see [Orchestrator](#orchestrator). `-p` picks one stage. The monitoring stage stays out of the
+default run, because it runs on its own daily schedule:
 
 ```shell
 uv run winterload -p monitoring

@@ -6,6 +6,10 @@ COMPOSE := docker compose --env-file .env --env-file .env.docker
 up:
 	@$(COMPOSE) up -d
 
+# Kestra runs the pipelines in the local `winterload` image. Rebuild it after code changes.
+build:
+	@$(COMPOSE) build winterload
+
 down:
 	@$(COMPOSE) down
 

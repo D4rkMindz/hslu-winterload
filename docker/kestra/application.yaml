@@ -1,0 +1,33 @@
+kestra:
+  url: http://localhost:${KESTRA_PORT}/
+  server:
+    basic-auth:
+      username: ${KESTRA_LOGIN_USER} # must be a valid email address
+      password: ${KESTRA_LOGIN_PASSWORD} # at least 8 characters, with an uppercase letter and a number
+  repository:
+    type: postgres
+  storage:
+    type: local
+    local:
+      base-path: "/app/storage"
+  queue:
+    type: postgres
+  tutorialFlows:
+    enabled: false
+  tasks:
+    tmp-dir:
+      path: /tmp/kestra-wd/tmp
+  plugins:
+    configurations:
+      - type: io.kestra.plugin.scripts.runner.docker.Docker
+        values:
+          # lets the flows mount the GCP service account key into the task containers
+          volume-enabled: true
+
+# Loads the flows in docker/kestra/files/flows on start and picks up changes to them.
+micronaut:
+  io:
+    watch:
+      enabled: true
+      paths:
+        - /files/flows
