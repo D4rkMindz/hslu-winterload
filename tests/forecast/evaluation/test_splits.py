@@ -1,8 +1,16 @@
 import datetime as dt
 
 import pandas as pd
-from winterload.forecast.evaluation.splits import CHAMPION_CHALLENGER_HOLDOUT, TEST_END, TEST_START, TRAIN_START, \
-    champion_challenger_holdout, challenger_train_end, training_windows
+
+from winterload.forecast.evaluation.splits import (
+    CHAMPION_CHALLENGER_HOLDOUT,
+    TEST_END,
+    TEST_START,
+    TRAIN_START,
+    challenger_train_end,
+    champion_challenger_holdout,
+    training_windows,
+)
 
 
 def test_test_window_holds_8760_hours():

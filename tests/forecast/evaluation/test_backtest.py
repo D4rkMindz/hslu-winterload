@@ -4,9 +4,20 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from winterload.forecast.evaluation.backtest import MIN_PUBLICATION_TOLERANCE, check_day, compare_load_versions, \
-    expected_target_hours, issue_time, observe_publication, observe_weather_run, publication_tolerance, replay_day, \
-    rows_of_local_day, rows_of_local_days, training_cutoff
+from winterload.forecast.evaluation.backtest import (
+    MIN_PUBLICATION_TOLERANCE,
+    check_day,
+    compare_load_versions,
+    expected_target_hours,
+    issue_time,
+    observe_publication,
+    observe_weather_run,
+    publication_tolerance,
+    replay_day,
+    rows_of_local_day,
+    rows_of_local_days,
+    training_cutoff,
+)
 from winterload.forecast.features.dataset import TARGET_COLUMN, weather_run
 from winterload.forecast.model.preliminary import PreliminaryModel
 

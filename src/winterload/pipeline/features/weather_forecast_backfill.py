@@ -15,7 +15,7 @@ from winterload import COORDINATES, Coordinate
 from winterload.forecast.features.dataset import FIRST_WEATHER_DAY, local_day_bounds, weather_run
 from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.pipeline.features.openmeteo import OpenMeteoBackfillPipeline
-from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo, OpenMeteoResult, OpenMeteoModelResult
+from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo, OpenMeteoModelResult, OpenMeteoResult
 
 
 class WeatherForecastBackfill(OpenMeteoBackfillPipeline):

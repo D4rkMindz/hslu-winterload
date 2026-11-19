@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import fsspec
 import pandas as pd
+
 from winterload.repository.results import ResultRepository
 
 

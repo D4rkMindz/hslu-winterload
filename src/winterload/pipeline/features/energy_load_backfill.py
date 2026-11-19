@@ -5,7 +5,6 @@ has a file.
 """
 
 import datetime as dt
-import logging
 
 import pandas as pd
 
@@ -14,7 +13,7 @@ import pandas as pd
 # leaves the SeaweedFS S3 credentials unset and historical retrieval fails with NoCredentialsError.
 from winterload.config import settings  # noqa: F401
 from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE, BackfillPipeline, retry
-from winterload.source.entso_e import EntsoE, EnergyLoadRecord
+from winterload.source.entso_e import EnergyLoadRecord, EntsoE
 
 FEATURE_COLUMNS = ["event_timestamp", "bidding_zone_id", "quantity", "unit"]
 

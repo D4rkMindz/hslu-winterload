@@ -1,6 +1,7 @@
 import datetime as dt
 
 import pytest
+
 from winterload.forecast.features.holidays_ch import holiday_share_ch, is_holiday_ch
 from winterload.forecast.features.population import CANTON_POPULATION
 
@@ -11,7 +12,8 @@ def test_national_holidays_count_for_everyone(day):
     assert is_holiday_ch(day)
 
 
-@pytest.mark.parametrize("day", [dt.date(2025, 4, 18), dt.date(2025, 4, 21), dt.date(2025, 6, 9), dt.date(2025, 12, 26)])
+@pytest.mark.parametrize("day", [dt.date(2025, 4, 18), dt.date(2025, 4, 21), dt.date(2025, 6, 9),
+                                 dt.date(2025, 12, 26)])
 def test_widely_observed_holidays_are_flagged(day):
     assert 0.5 < holiday_share_ch(day) < 1
     assert is_holiday_ch(day)

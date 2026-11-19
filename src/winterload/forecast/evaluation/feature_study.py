@@ -10,6 +10,7 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
+
 from winterload.forecast.features.dataset import CALENDAR_COLUMNS, LAG_COLUMNS, TARGET_COLUMN, WEATHER_COLUMNS
 from winterload.forecast.metrics import mae, mape
 from winterload.forecast.model.preliminary import PRELIMINARY_SETTINGS, LightGBMSettings, PreliminaryModel

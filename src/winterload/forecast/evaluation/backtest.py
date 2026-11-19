@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+
 from winterload.forecast.features.dataset import LAG_HOURS, TARGET_COLUMN, ZURICH_TZ, local_day_bounds
 from winterload.forecast.metrics import mae, mape
 from winterload.forecast.model.baseline import seasonal_naive_forecast

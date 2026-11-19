@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import pandas as pd
+
 from winterload.forecast.features.dataset import WEATHER_COLUMNS
 from winterload.forecast.metrics import mae, mape
 

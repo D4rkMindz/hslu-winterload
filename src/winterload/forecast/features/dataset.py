@@ -1,6 +1,7 @@
 import datetime as dt
 
 import pandas as pd
+
 from winterload.forecast.features.holidays_ch import holiday_share_ch
 from winterload.forecast.features.population import city_population_weights
 
@@ -41,7 +42,8 @@ DEFAULT_CITY_WEIGHTS = EQUAL_CITY_WEIGHTS
 def weather_run(target_day: dt.date) -> dt.datetime:
     """The run behind the weather features of `target_day`, as a naive UTC datetime."""
     run_day = target_day - dt.timedelta(days=WEATHER_RUN_DAYS_BEFORE_TARGET)
-    return dt.datetime.combine(run_day, WEATHER_RUN_TIME_UTC if run_day >= FIRST_18_UTC_RUN else EARLY_WEATHER_RUN_TIME_UTC)
+    run_time = WEATHER_RUN_TIME_UTC if run_day >= FIRST_18_UTC_RUN else EARLY_WEATHER_RUN_TIME_UTC
+    return dt.datetime.combine(run_day, run_time)
 
 
 def local_day_bounds(target_day: dt.date, tz: str = ZURICH_TZ) -> tuple[pd.Timestamp, pd.Timestamp]:

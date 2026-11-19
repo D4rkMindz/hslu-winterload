@@ -2,6 +2,7 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 import pandas as pd
+
 from winterload.forecast.features.dataset import TARGET_COLUMN
 
 if TYPE_CHECKING:
@@ -11,7 +12,7 @@ ENERGY_LOAD_TABLE = "energy_load"
 
 
 class LoadRepository:
-    def __init__(self, storage: "Storage") -> None:
+    def __init__(self, storage: Storage) -> None:
         self._storage = storage
 
     def hourly(self, start: dt.date, end: dt.date) -> pd.Series:

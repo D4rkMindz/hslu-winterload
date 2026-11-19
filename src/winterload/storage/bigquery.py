@@ -13,6 +13,7 @@ import pandas as pd
 from feast import BigQuerySource
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
+
 from winterload.config import settings
 from winterload.source.openmeteo import HOURLY_VARIABLES
 from winterload.storage.base import Storage

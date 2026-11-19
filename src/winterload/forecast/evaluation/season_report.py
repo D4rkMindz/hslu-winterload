@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+
 from winterload.forecast.features.dataset import TARGET_COLUMN, ZURICH_TZ
 from winterload.forecast.features.holidays_ch import NATIONAL_HOLIDAY_SHARE
 from winterload.forecast.metrics import mae, mape

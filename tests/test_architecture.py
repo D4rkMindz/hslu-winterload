@@ -11,7 +11,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "winterload"
 NOTEBOOKS = sorted((ROOT / "notebooks").rglob("*.ipynb"))
-NOTEBOOK_FORBIDDEN = [r"\brequests\.", r"\.to_csv\(", r"read_csv\(", r"\.read_range\(", r"read_parquet\(", r"PROJECT_ROOT"]
+NOTEBOOK_FORBIDDEN = [r"\brequests\.", r"\.to_csv\(", r"read_csv\(", r"\.read_range\(", r"read_parquet\(",
+                      r"PROJECT_ROOT"]
 
 
 def _code_cells(notebook: Path) -> str:

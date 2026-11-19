@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from winterload.forecast.metrics import mae, mape
 
 

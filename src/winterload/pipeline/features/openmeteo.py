@@ -5,7 +5,7 @@ import pandas as pd
 
 from winterload import COORDINATES, Coordinate
 from winterload.pipeline.features import BackfillPipeline, retry
-from winterload.source.openmeteo import OpenMeteo, OpenMeteoResult, OpenMeteoModelResult
+from winterload.source.openmeteo import OpenMeteo, OpenMeteoModelResult, OpenMeteoResult
 
 DayResult = dict[str, OpenMeteoResult]
 

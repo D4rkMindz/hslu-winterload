@@ -12,12 +12,18 @@ import logging
 
 import pandas as pd
 import requests
+
 from winterload.forecast.evaluation.backtest import compare_load_versions, observe_publication, observe_weather_run
 from winterload.pipeline.monitoring import MonitoringPipeline
 from winterload.repository.factory import result_repository
 from winterload.repository.load import LoadRepository
-from winterload.repository.results import LOAD_SNAPSHOTS, PUBLICATION_LOG, REVISION_LOG, WEATHER_RUN_LOG, \
-    ResultRepository
+from winterload.repository.results import (
+    LOAD_SNAPSHOTS,
+    PUBLICATION_LOG,
+    REVISION_LOG,
+    WEATHER_RUN_LOG,
+    ResultRepository,
+)
 from winterload.source.entso_e import EntsoE
 from winterload.source.frauenhofer_ise import FrauenhoferISE
 from winterload.source.openmeteo import OpenMeteo
@@ -38,7 +44,8 @@ def _entsoe_load(start: dt.datetime, end: dt.datetime) -> pd.Series:
 
 def _energy_charts_load(start: dt.datetime, end: dt.datetime) -> pd.Series:
     rows = FrauenhoferISE().get_public_power(start=start, end=end)
-    series = pd.Series({pd.Timestamp(r["timestamp"]).tz_convert("UTC"): r["load"] for r in rows if r["load"] is not None},
+    series = pd.Series({pd.Timestamp(r["timestamp"]).tz_convert("UTC"): r["load"]
+                        for r in rows if r["load"] is not None},
                        dtype="float64")
     return series[~series.index.duplicated()]
 
@@ -90,7 +97,8 @@ class PublicationProbe(MonitoringPipeline):
                               .drop_duplicates("event_timestamp").set_index("event_timestamp")["quantity"])
                 revisions.append({"source": name, "window": "earlier snapshot",
                                   **dataclasses.asdict(compare_load_versions(first_seen, series))})
-            self._append(LOAD_SNAPSHOTS, series.rename("quantity").rename_axis("event_timestamp").reset_index().assign(source=name), now)
+            snapshot = series.rename("quantity").rename_axis("event_timestamp").reset_index().assign(source=name)
+            self._append(LOAD_SNAPSHOTS, snapshot, now)
         if revisions:
             self._append(REVISION_LOG, pd.DataFrame(revisions), now)
 

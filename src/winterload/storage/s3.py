@@ -5,7 +5,6 @@ read by Feast's `file` offline store (feature_store.yaml).
 import datetime as dt
 import json
 import logging
-
 from typing import Any
 from urllib.parse import urlparse
 
@@ -16,6 +15,7 @@ import pyarrow.parquet as pq
 import s3fs
 from feast import FileSource
 from fsspec import AbstractFileSystem
+
 from winterload.config import settings
 from winterload.storage.base import Storage
 

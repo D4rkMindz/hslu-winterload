@@ -11,7 +11,7 @@ import pandas as pd
 
 from winterload import COORDINATES, Coordinate
 from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE
-from winterload.pipeline.features.openmeteo import OpenMeteoBackfillPipeline, DayResult
+from winterload.pipeline.features.openmeteo import DayResult, OpenMeteoBackfillPipeline
 from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo, OpenMeteoModelResult
 
 logger = logging.getLogger(__name__)

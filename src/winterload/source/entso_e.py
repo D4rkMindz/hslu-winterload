@@ -16,7 +16,7 @@ class EnergyLoadRecord(TypedDict):
     unit: str
 
 
-class EntsoE(object):
+class EntsoE:
     BASE_URL = "https://web-api.tp.entsoe.eu/api"
     NS = {"ns": "urn:iec62325.351:tc57wg16:451-6:generationloaddocument:3:0"}
     RESOLUTION_TO_TIMEDELTA: dict[str, dt.timedelta] = {
@@ -32,7 +32,7 @@ class EntsoE(object):
 
     def get_load(self, start_date: dt.datetime = DEFAULT_START_DATE,
                  end_date: dt.datetime = DEFAULT_END_DATE) -> list[EnergyLoadRecord]:
-        # curl --location 'https://web-api.tp.entsoe.eu/api?documentType=A65&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202303030000&periodEnd=202303060000' \
+        # curl --location 'https://web-api.tp.entsoe.eu/api?documentType=A65&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202303030000&periodEnd=202303060000' \  # noqa: E501
         # --header 'SECURITY_TOKEN: •••••••'
         self.logger.info("Getting energy load data from ENTSO-E API between %s and %s", start_date, end_date)
         r = requests.get(f"{self.BASE_URL}", params={

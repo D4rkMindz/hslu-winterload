@@ -1,7 +1,14 @@
 import pandas as pd
 import pytest
-from winterload.forecast.evaluation.season_report import SEASON_BY_MONTH, chronological_forecast, \
-    compare_seasonal_models, local_months, report_by_holiday, report_by_season
+
+from winterload.forecast.evaluation.season_report import (
+    SEASON_BY_MONTH,
+    chronological_forecast,
+    compare_seasonal_models,
+    local_months,
+    report_by_holiday,
+    report_by_season,
+)
 from winterload.forecast.features.dataset import TARGET_COLUMN
 
 

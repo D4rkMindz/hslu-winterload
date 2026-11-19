@@ -3,9 +3,19 @@ import datetime as dt
 import numpy as np
 import pandas as pd
 import pytest
+
 from winterload.forecast.evaluation.backtest import WEATHER_RUN_DELAY, expected_target_hours, issue_time
-from winterload.forecast.features.dataset import EQUAL_CITY_WEIGHTS, LAG_COLUMNS, POPULATION_CITY_WEIGHTS, \
-    TARGET_COLUMN, WEATHER_COLUMNS, aggregate_weather, assemble_training_frame, local_day_bounds, weather_run
+from winterload.forecast.features.dataset import (
+    EQUAL_CITY_WEIGHTS,
+    LAG_COLUMNS,
+    POPULATION_CITY_WEIGHTS,
+    TARGET_COLUMN,
+    WEATHER_COLUMNS,
+    aggregate_weather,
+    assemble_training_frame,
+    local_day_bounds,
+    weather_run,
+)
 from winterload.source.openmeteo import HOURLY_VARIABLES
 
 
@@ -78,7 +88,8 @@ def test_weather_run_switches_to_18_utc_at_the_archive_boundary():
     assert weather_run(dt.date(2024, 8, 8)) == dt.datetime(2024, 8, 6, 18)
 
 
-@pytest.mark.parametrize("day", [dt.date(2025, 7, 2), dt.date(2025, 1, 15), dt.date(2025, 3, 30), dt.date(2025, 10, 26)])
+@pytest.mark.parametrize("day", [dt.date(2025, 7, 2), dt.date(2025, 1, 15), dt.date(2025, 3, 30),
+                                 dt.date(2025, 10, 26)])
 def test_target_hours_lie_28_to_52_hours_after_the_run(day):
     run = pd.Timestamp(weather_run(day), tz="UTC")
 

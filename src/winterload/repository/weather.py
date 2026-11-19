@@ -2,6 +2,7 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 import pandas as pd
+
 from winterload.forecast.features.dataset import local_day_bounds
 from winterload.source.openmeteo import FORECAST_MODEL, REANALYSIS_MODEL
 
@@ -23,7 +24,7 @@ def _of_model(rows: pd.DataFrame, model: str) -> pd.DataFrame:
 
 
 class WeatherRepository:
-    def __init__(self, storage: "Storage") -> None:
+    def __init__(self, storage: Storage) -> None:
         self._storage = storage
 
     def forecast(self, start: dt.date, end: dt.date) -> pd.DataFrame:

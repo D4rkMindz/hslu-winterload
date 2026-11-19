@@ -4,7 +4,7 @@ from datetime import datetime
 import requests
 
 
-class FrauenhoferISE(object):
+class FrauenhoferISE:
     BASE_URL = "https://api.energy-charts.info"
 
     def __init__(self):
@@ -12,7 +12,7 @@ class FrauenhoferISE(object):
 
     def get_public_power(self, start: datetime = datetime.combine(datetime.today(), datetime.min.time()),
                          end: datetime = datetime.now()):
-        # raise NotImplementedError("Frauenhofer ISE API (https://api.energy-charts.info/) is currently down since 2026-09-29, see https://github.com/evcc-io/evcc/issues/34437")
+        # raise NotImplementedError("Frauenhofer ISE API (https://api.energy-charts.info/) is currently down since 2026-09-29, see https://github.com/evcc-io/evcc/issues/34437")  # noqa: E501
         self.logger.info("Getting public power from %s to %s", start.isoformat(), end.isoformat())
         r = requests.get(f"{self.BASE_URL}/v2/public_power?country=ch&start={start}&end={end}", headers={
             "Accept": "application/json",

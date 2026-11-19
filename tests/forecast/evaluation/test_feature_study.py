@@ -1,8 +1,13 @@
 import numpy as np
 import pandas as pd
 import pytest
-from winterload.forecast.evaluation.feature_study import chronological_folds, feature_sets, out_of_fold_forecast, \
-    summarize_folds
+
+from winterload.forecast.evaluation.feature_study import (
+    chronological_folds,
+    feature_sets,
+    out_of_fold_forecast,
+    summarize_folds,
+)
 from winterload.forecast.features.dataset import CALENDAR_COLUMNS, LAG_COLUMNS, TARGET_COLUMN, WEATHER_COLUMNS
 
 

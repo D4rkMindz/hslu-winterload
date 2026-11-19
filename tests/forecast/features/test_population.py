@@ -1,4 +1,5 @@
 import pytest
+
 from winterload import COORDINATES
 from winterload.forecast.features.population import CANTON_POPULATION, NEAREST_CITY, city_population_weights
 

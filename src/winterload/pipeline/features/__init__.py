@@ -5,18 +5,16 @@ mirrors). `run_all` discovers and runs every pipeline defined in this package;
 """
 
 import datetime as dt
-import importlib
-import inspect
 import logging
-import pkgutil
 import time
 from abc import abstractmethod
-from typing import Callable, TypedDict, Any
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
+
 from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.pipeline.base import Pipeline
-from winterload.storage import Storage, get_storage
 
 RETRY_ATTEMPTS = 2
 RETRY_WAIT_SECONDS = 30
@@ -87,7 +85,7 @@ def main() -> None:
     )
     parser.add_argument(
         "-p", "--pipeline", type=dt.date.fromisoformat, default=DEFAULT_END_DATE,
-        help=f"default: run all",
+        help="default: run all",
     )
     parser.add_argument("-f", "--force", action="store_true", help="re-fetch days that already have a file")
     args = parser.parse_args()

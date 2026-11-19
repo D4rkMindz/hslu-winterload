@@ -10,15 +10,16 @@ split the share at the same point and the flag alone scored worse (notebooks/tra
 """
 
 import datetime as dt
-from functools import lru_cache
+from functools import cache
 
 import holidays
+
 from winterload.forecast.features.population import CANTON_POPULATION
 
 NATIONAL_HOLIDAY_SHARE = 0.5
 
 
-@lru_cache(maxsize=None)
+@cache
 def _shares_of_year(year: int) -> dict[dt.date, float]:
     total = sum(CANTON_POPULATION.values())
     shares: dict[dt.date, float] = {}
