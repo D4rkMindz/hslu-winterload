@@ -6,9 +6,13 @@ their own defaults.
 """
 
 import datetime as dt
-from typing import Callable
+import logging
+import sys
+from collections.abc import Callable
 
 from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
+from winterload.errors import StageError
+from winterload.forecast.evaluation.tuning import DEFAULT_TRIALS
 from winterload.pipeline.features import FeaturePipeline
 from winterload.pipeline.features.energy_load_backfill import EnergyLoadBackfill
 from winterload.pipeline.features.weather_forecast_backfill import WeatherForecastBackfill
@@ -16,16 +20,26 @@ from winterload.pipeline.features.weather_measurements_backfill import WeatherMe
 from winterload.pipeline.inference import InferencePipeline
 from winterload.pipeline.monitoring import MonitoringPipeline
 from winterload.pipeline.training import TrainingPipeline
+from winterload.pipeline.training.final_test import FinalTestPipeline
+from winterload.pipeline.training.tuning import TuningPipeline
 
 #: Run order for a plain `winterload` invocation; `-p` may instead pick any subset of these names.
-#: Monitoring stays out: it runs on its own daily schedule with `-p monitoring`.
+#: Monitoring stays out: it runs on its own daily schedule with `-p monitoring`. So do tuning and the final
+#: test, which only run on request (`-p training.tuning`, `-p training.final_test`).
 DEFAULT_STAGE_ORDER = ["features", "training", "inference"]
+
+logger = logging.getLogger("winterload.pipeline")
 
 
 def run_all(steps: list[Callable[[], None]]) -> None:
-    """Runs every given step once, in order."""
-    for step in steps:
-        step()
+    """Runs every given step once, in order. A StageError stops the run with one ERROR line and exit code 1,
+    which Kestra shows as a failed execution with that line as the reason."""
+    try:
+        for step in steps:
+            step()
+    except StageError as error:
+        logger.error("%s: %s", type(error).__name__, error)
+        sys.exit(1)
 
 
 def main() -> None:
@@ -45,6 +59,11 @@ def main() -> None:
         help="default: run all pipelines (feature -> training -> inference)",
     )
     parser.add_argument("-f", "--force", action="store_true", help="re-fetch days the features stage already has")
+    parser.add_argument("--trials", type=int, default=DEFAULT_TRIALS,
+                        help=f"training.tuning: Optuna trials (default: {DEFAULT_TRIALS})")
+    parser.add_argument("--tuning-run-id", default=None,
+                        help="training.final_test: the tuning run to check (default: TUNING_RUN_ID in "
+                             "winterload/forecast/model/tuned.py)")
     args = parser.parse_args()
 
     # Each stage is bound to exactly the args it needs, right here where we know them -- the
@@ -57,6 +76,9 @@ def main() -> None:
         "features.forecast.backfill": lambda: WeatherForecastBackfill().run(args.start, args.end, force=args.force),
         "features.weather.backfill": lambda: WeatherMeasurementsBackfill().run(args.start, args.end, force=args.force),
         "training": lambda: TrainingPipeline.run_all(),
+        "training.tuning": lambda: TuningPipeline().run(trials=args.trials),
+        # Kestra passes an empty string when its input is left blank.
+        "training.final_test": lambda: FinalTestPipeline().run(tuning_run_id=args.tuning_run_id or None),
         "inference": lambda: InferencePipeline.run_all(),
         "monitoring": lambda: MonitoringPipeline.run_all(),
     }

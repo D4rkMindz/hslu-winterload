@@ -1,14 +1,15 @@
 # initially copied from https://open-meteo.com/en/docs/meteoswiss-api?hourly=temperature_2m,precipitation,rain,apparent_temperature,dew_point_2m,relative_humidity_2m,snowfall,snow_depth,cloud_cover,cloud_cover_mid,cloud_cover_low,cloud_cover_high,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,wet_bulb_temperature_2m,cloud_base,sunshine_duration,snowfall_height,freezing_level_height&time_mode=time_interval&api_mode=historical_forecast&start_date=2022-01-01&end_date=2022-12-31&models=meteoswiss_icon_seamless,meteoswiss_icon_ch1,meteoswiss_icon_ch2&daily=weather_code,temperature_2m_min,temperature_2m_max,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,sunshine_duration,daylight_duration,rain_sum,showers_sum,snowfall_sum,precipitation_sum,precipitation_hours,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum,et0_fao_evapotranspiration
 # then rewritten to a class
 import logging
+from datetime import date, datetime
+from typing import TypedDict
+
 import openmeteo_requests
 import pandas as pd
 import requests
 import requests_cache
-from datetime import date, datetime
 from openmeteo_sdk import Model
 from retry_requests import retry
-from typing import TypedDict
 
 
 # Named weather features used by the model (docs/proposal.pdf, Named features): mean of the

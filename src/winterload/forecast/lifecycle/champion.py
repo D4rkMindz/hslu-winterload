@@ -4,6 +4,7 @@ it on hours it has not seen. `champion` is the winner refit on all data, for inf
 winterload.repository.champion stores both.
 """
 
+import datetime as dt
 from dataclasses import dataclass
 
 from winterload.forecast.model.preliminary import PreliminaryModel
@@ -14,3 +15,5 @@ class ChampionRecord:
     evaluation_model: PreliminaryModel
     holdout_mape: float
     promoted_at: str
+    #: `champion_eval` trained on data before this date (the holdout start of the run that promoted it)
+    training_end: dt.date | None = None

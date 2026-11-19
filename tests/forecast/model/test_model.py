@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from winterload.forecast.features.dataset import TARGET_COLUMN
 from winterload.forecast.model.preliminary import EARLY_STOPPING_SETTINGS, ModelNotFitted, PreliminaryModel
 
@@ -67,3 +68,17 @@ def test_from_estimator_keeps_an_early_stopped_model():
     restored = PreliminaryModel.from_estimator(model.estimator)
 
     assert np.array_equal(restored.predict(train), model.predict(train))
+
+
+def test_an_unfitted_copy_keeps_the_settings_of_a_registry_model():
+    train = _learnable_frame()
+    tuned = PreliminaryModel(EARLY_STOPPING_SETTINGS.__class__(n_estimators=37, learning_rate=0.2, num_leaves=7,
+                                                              max_depth=-1, min_child_samples=5)).fit(train)
+    restored = PreliminaryModel.from_estimator(tuned.estimator)
+
+    copy = restored.unfitted_copy()
+
+    assert copy.estimator.get_params() == tuned.estimator.get_params()
+    with pytest.raises(ModelNotFitted):
+        copy.predict(train)
+    assert copy.fit(train).evaluate(train) == pytest.approx(tuned.evaluate(train))

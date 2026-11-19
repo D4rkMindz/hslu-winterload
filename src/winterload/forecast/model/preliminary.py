@@ -4,6 +4,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
+from sklearn.base import clone
 
 from winterload.forecast.features.dataset import TARGET_COLUMN
 from winterload.forecast.metrics import mape
@@ -23,6 +24,12 @@ class LightGBMSettings:
     max_depth: int
     min_child_samples: int
     early_stopping_rounds: int | None = None
+    # Row and column sampling and L2 regularisation. The defaults are LightGBM's, which switch all three off.
+    # winterload.forecast.evaluation.tuning searches them.
+    subsample: float = 1.0
+    subsample_freq: int = 0
+    colsample_bytree: float = 1.0
+    reg_lambda: float = 0.0
 
 
 # LightGBM's defaults, written out. The preliminary model stays untuned because the B1/A4 target
@@ -34,6 +41,9 @@ EARLY_STOPPING_SETTINGS = LightGBMSettings(n_estimators=2000, learning_rate=0.05
                                            min_child_samples=20, early_stopping_rounds=50)
 # Early stopping watches the newest rows of the training data, so it never reads validation rows.
 EARLY_STOPPING_SHARE = 0.1
+# LightGBM starts one thread per core by default. On ~10,000 rows the threads mostly wait for each other: on a
+# busy 16-core host, 2000 trees with 255 leaves took 403 s with 16 threads and 4.4 s with 4.
+THREADS = 4
 
 
 class PreliminaryModel:
@@ -47,13 +57,25 @@ class PreliminaryModel:
             num_leaves=settings.num_leaves,
             max_depth=settings.max_depth,
             min_child_samples=settings.min_child_samples,
+            subsample=settings.subsample,
+            subsample_freq=settings.subsample_freq,
+            colsample_bytree=settings.colsample_bytree,
+            reg_lambda=settings.reg_lambda,
+            n_jobs=THREADS,
             random_state=0,
             verbose=-1,
         )
         self._feature_columns: list[str] | None = None
 
+    def unfitted_copy(self) -> PreliminaryModel:
+        """A new, unfitted model with this model's estimator settings, for example to refit a champion
+        loaded from the registry on more data."""
+        model = PreliminaryModel(self._settings)
+        model._model = clone(self._model)
+        return model
+
     @classmethod
-    def from_estimator(cls, estimator: lgb.LGBMRegressor) -> "PreliminaryModel":
+    def from_estimator(cls, estimator: lgb.LGBMRegressor) -> PreliminaryModel:
         """Wraps a fitted estimator, for example one loaded from the model registry."""
         model = cls()
         model._model = estimator
@@ -64,7 +86,7 @@ class PreliminaryModel:
     def estimator(self) -> lgb.LGBMRegressor:
         return self._model
 
-    def fit(self, train: pd.DataFrame) -> "PreliminaryModel":
+    def fit(self, train: pd.DataFrame) -> PreliminaryModel:
         self._feature_columns = [c for c in train.columns if c not in (TARGET_COLUMN, "event_timestamp")]
         features, target = train[self._feature_columns], train[TARGET_COLUMN]
         if self._settings.early_stopping_rounds is None:

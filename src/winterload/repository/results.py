@@ -27,10 +27,11 @@ MODEL_SETTINGS = "training/model_settings"
 SEASONAL_MODELS = "training/seasonal_models"
 WEATHER_WEIGHTS = "training/weather_weights"
 ORDER_NOISE = "training/order_noise"
+DRIFT_LOG = "monitoring/drift_log"
 
 
 class ResultRepository:
-    def __init__(self, root: str, filesystem: "AbstractFileSystem") -> None:
+    def __init__(self, root: str, filesystem: AbstractFileSystem) -> None:
         self._root = root.rstrip("/")
         self._filesystem = filesystem
 

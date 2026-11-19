@@ -2,8 +2,10 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
+from winterload.errors import StageError
 
-class TestYearAlreadyAccessed(RuntimeError):
+
+class TestYearAlreadyAccessed(StageError):
     """Raised when the final test year is accessed a second time without force=True."""
     __test__ = False  # not a pytest test case -- the name just starts with "Test"
 

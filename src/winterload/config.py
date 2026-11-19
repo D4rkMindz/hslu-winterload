@@ -1,6 +1,6 @@
 import logging
+import os
 import sys
-
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +17,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # snapshots its env-var config at first import, so loading .env any later leaves the SeaweedFS
 # S3 credentials unset and historical retrieval fails with NoCredentialsError/ACCESS_DENIED.
 load_dotenv(PROJECT_ROOT / ".env")
+
+# MLflow retries a failed request 7 times with a growing backoff, so a stage waits minutes before it
+# reports that the server is down. 3 retries still ride out a short hiccup.
+os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "3")
+# MLflow otherwise attaches its own stderr handler, and Kestra shows its INFO lines as errors. Without it,
+# MLflow's logs go through the handlers below (INFO to stdout). Must be set before mlflow is imported.
+os.environ.setdefault("MLFLOW_CONFIGURE_LOGGING", "false")
 
 # Configured here, at the module everything else imports `settings` from, so every entry point
 # (pipeline CLIs, notebooks) gets a working handler just by importing winterload.config -- without
@@ -61,7 +68,10 @@ class Settings(BaseSettings):
     results_path: str = Field(default="s3://winterload/results", alias="RESULTS_PATH")
 
     # 5001 on the host, because macOS AirPlay occupies 5000. See docker/mlflow/docker-compose.yaml.
+    # MLflow itself reads MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD from the environment.
     mlflow_tracking_uri: str = Field(default="http://localhost:5001", alias="MLFLOW_TRACKING_URI")
+    # The commit the image was built from (Dockerfile, build arg GIT_SHA). Every MLflow run carries it.
+    git_sha: str = Field(default="local", alias="GIT_SHA")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 

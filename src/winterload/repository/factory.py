@@ -8,11 +8,11 @@ if TYPE_CHECKING:
     from winterload.repository.champion import ChampionRepository
 
 
-def champion_repository() -> "ChampionRepository":
+def champion_repository() -> ChampionRepository:
     # Imported here, so callers of result_repository() don't load MLflow. MLflow pulls in tqdm, which
     # prints a TqdmWarning in every notebook without ipywidgets.
     from winterload.repository.champion import ChampionRepository
-    return ChampionRepository(settings.mlflow_tracking_uri)
+    return ChampionRepository(settings.mlflow_tracking_uri, settings.git_sha)
 
 
 def result_repository() -> ResultRepository:
