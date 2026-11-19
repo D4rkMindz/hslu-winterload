@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="790" viewBox="0 0 1180 790" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+<rect width="1180" height="790" fill="#ffffff"/>
+<rect x="190" y="122" width="560" height="568" rx="8" fill="none" stroke="#999" stroke-dasharray="6 4" stroke-width="1.5"/>
+<text x="202" y="144" font-size="13" font-weight="bold" fill="#555">Kestra: atc.darker.dev (production), docker compose (local)</text>
+<rect x="220" y="24" width="190" height="56" rx="6" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5"/>
+<text x="315.0" y="48.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">GitHub repo</text>
+<text x="315.0" y="64.0" font-size="12" text-anchor="middle" fill="#333">code, flows, tuned.py</text>
+<rect x="450" y="24" width="160" height="56" rx="6" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5"/>
+<text x="530.0" y="48.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">CI</text>
+<text x="530.0" y="64.0" font-size="12" text-anchor="middle" fill="#333">ruff + pytest</text>
+<rect x="650" y="24" width="200" height="56" rx="6" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5"/>
+<text x="750.0" y="48.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">publish-image</text>
+<text x="750.0" y="64.0" font-size="12" text-anchor="middle" fill="#333">ghcr.io, tagged with git SHA</text>
+<rect x="20" y="160" width="150" height="44" rx="6" fill="#f5f5f5" stroke="#666666" stroke-width="1.5"/>
+<text x="95.0" y="178.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">ENTSO-E</text>
+<text x="95.0" y="194.0" font-size="12" text-anchor="middle" fill="#333">hourly CH load</text>
+<rect x="20" y="214" width="150" height="44" rx="6" fill="#f5f5f5" stroke="#666666" stroke-width="1.5"/>
+<text x="95.0" y="232.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">Open-Meteo</text>
+<text x="95.0" y="248.0" font-size="12" text-anchor="middle" fill="#333">ECMWF IFS runs, ERA5</text>
+<rect x="220" y="170" width="300" height="76" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="370.0" y="196.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">1 Feature pipeline</text>
+<text x="370.0" y="212.0" font-size="12" text-anchor="middle" fill="#333">daily_forecast, daily 07:00</text>
+<text x="370.0" y="228.0" font-size="12" text-anchor="middle" fill="#333">backfills over the last 7 days</text>
+<rect x="220" y="284" width="300" height="116" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="370.0" y="322.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">2 Training pipeline</text>
+<text x="370.0" y="338.0" font-size="12" text-anchor="middle" fill="#333">weekly_training, Mon 06:00: champion/challenger</text>
+<text x="370.0" y="354.0" font-size="12" text-anchor="middle" fill="#333">tuning, monthly + manual: Optuna, nested runs</text>
+<text x="370.0" y="370.0" font-size="12" text-anchor="middle" fill="#333">final_test, manual, once: held-out year</text>
+<rect x="220" y="444" width="300" height="92" rx="6" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5"/>
+<text x="370.0" y="470.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">Monitoring</text>
+<text x="370.0" y="486.0" font-size="12" text-anchor="middle" fill="#333">daily_monitoring, daily 08:00</text>
+<text x="370.0" y="502.0" font-size="12" text-anchor="middle" fill="#333">MAPE vs. 0.9 x baseline OR</text>
+<text x="370.0" y="518.0" font-size="12" text-anchor="middle" fill="#333">Evidently drift share &gt;= 0.5</text>
+<rect x="220" y="590" width="300" height="70" rx="6" fill="#ffffff" stroke="#999999" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="370.0" y="621.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">3 Inference pipeline (MS4)</text>
+<text x="370.0" y="637.0" font-size="12" text-anchor="middle" fill="#333">daily_forecast, after the features</text>
+<rect x="860" y="170" width="240" height="76" rx="6" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="980.0" y="196.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">Feature store</text>
+<text x="980.0" y="212.0" font-size="12" text-anchor="middle" fill="#333">BigQuery behind Feast</text>
+<text x="980.0" y="228.0" font-size="12" text-anchor="middle" fill="#333">(local: SeaweedFS S3)</text>
+<rect x="860" y="290" width="240" height="140" rx="6" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="980.0" y="332.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">MLflow, ml.darker.dev</text>
+<text x="980.0" y="348.0" font-size="12" text-anchor="middle" fill="#333">experiments: winterload/training,</text>
+<text x="980.0" y="364.0" font-size="12" text-anchor="middle" fill="#333">tuning, monitoring, studies</text>
+<text x="980.0" y="380.0" font-size="12" text-anchor="middle" fill="#333">registry winterload-load-forecast:</text>
+<text x="980.0" y="396.0" font-size="12" text-anchor="middle" fill="#333">@champion, @champion_eval</text>
+<rect x="860" y="600" width="240" height="60" rx="6" fill="#ffffff" stroke="#999999" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="980.0" y="626.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">UI (MS4)</text>
+<text x="980.0" y="642.0" font-size="12" text-anchor="middle" fill="#333">forecast vs. actual</text>
+<rect x="860" y="706" width="240" height="56" rx="6" fill="#f5f5f5" stroke="#666666" stroke-width="1.5"/>
+<text x="980.0" y="730.0" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">note.darker.dev</text>
+<text x="980.0" y="746.0" font-size="12" text-anchor="middle" fill="#333">notebooks: feature studies</text>
+<polyline points="410,52 450,52" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="610,52 650,52" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="315,80 315,122" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="322" y="106" font-size="11" fill="#444" text-anchor="start">flows from main</text>
+<polyline points="700,80 700,122" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="707" y="106" font-size="11" fill="#444" text-anchor="start">image</text>
+<polyline points="170,182 220,182" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="170,236 220,236" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="520,190 860,190" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="690" y="184" font-size="11" fill="#444" text-anchor="middle">write features</text>
+<polyline points="860,226 640,226 640,625 520,625" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="648" y="262" font-size="11" fill="#444" text-anchor="start">read features</text>
+<polyline points="640,342 520,342" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="640,500 520,500" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<polyline points="520,312 860,312" fill="none" stroke="#333" stroke-width="1.4" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="648" y="306" font-size="11" fill="#444" text-anchor="start">log, register; load champion_eval</text>
+<polyline points="520,462 800,462 800,410 860,410" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="648" y="456" font-size="11" fill="#444" text-anchor="start">log runs, drift report</text>
+<polyline points="370,444 370,400" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="378" y="428" font-size="11" fill="#444" text-anchor="start">retrain trigger</text>
+<polyline points="940,430 940,568 470,568 470,590" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="948" y="470" font-size="11" fill="#444" text-anchor="start">load @champion</text>
+<polyline points="520,645 860,645" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="690" y="639" font-size="11" fill="#444" text-anchor="middle">forecasts</text>
+<polyline points="1100,734 1130,734 1130,380 1100,380" fill="none" stroke="#333" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="1060" y="578" font-size="11" fill="#444" text-anchor="start">log studies</text>
+<polyline points="1100,330 1150,330 1150,10 315,10 315,24" fill="none" stroke="#333" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#a)"/>
+<text x="866" y="27" font-size="11" fill="#444" text-anchor="start">tuned_settings.py: pasted into tuned.py, committed</text>
+</svg>

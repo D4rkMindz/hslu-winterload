@@ -1,0 +1,88 @@
+\documentclass[10pt,a4paper]{article}
+
+% DRAFT for MS3 (due Thu 03.12.2026, 23:59). TODO(author) marks what is still open; compile to
+% docs/ms3_summary.pdf (max. 2 pages) once the numbers from atc.darker.dev and the MS2 reviews are in.
+
+\usepackage[a4paper,margin=1.7cm,top=1.4cm,bottom=1.4cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{nosep,leftmargin=1.1em,topsep=1pt}
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing*{\section}{0pt}{6pt}{2pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.5pt}
+\pagestyle{empty}
+\hypersetup{pdftitle={MS3 Summary - WinterLoad},pdfauthor={Björn Pfoster}}
+
+% label, title, status, commit
+\newcommand{\point}[4]{\textbf{#1 \textperiodcentered{} #2 \textperiodcentered{} #3}\if\relax\detokenize{#4}\relax\else{} (\texttt{#4})\fi.}
+
+\begin{document}
+\small
+
+{\raggedright\Large\bfseries MS3 Summary \textperiodcentered{} WinterLoad: Day-Ahead Forecasting of Swiss Electricity Demand\par}
+\vspace{2pt}
+Björn Pfoster \textperiodcentered{} MLOps HS26 \textperiodcentered{} \url{https://github.com/D4rkMindz/hslu-winterload}
+
+\section{What I achieved in this milestone}
+\begin{itemize}
+  \item \textbf{Every training run goes through Kestra and lands in one MLflow.} Kestra on
+        \url{https://atc.darker.dev} pulls the flows from \texttt{main} and the image that CI published, and logs to
+        \url{https://ml.darker.dev}. \texttt{weekly\_training} runs champion/challenger every Monday,
+        \texttt{tuning} runs monthly and by hand, \texttt{final\_test} only by hand, and \texttt{daily\_monitoring}
+        starts a retrain when a trigger fires. Each stage has its own experiment (\texttt{winterload/training},
+        \texttt{tuning}, \texttt{monitoring}, \texttt{studies}), and every run carries the commit of its image and the
+        frames it trained on as MLflow datasets. The same flows run locally with docker compose against a local MLflow.
+  \item \textbf{Tuning with a gate before the test year.} Optuna searches seven LightGBM settings. Each trial scores
+        six chronological 8-week folds inside TRAIN, as a nested MLflow run. The run first scores the untuned model on
+        VALIDATION (5.68\%), which sets the target of 5.12\% (B1/A4 in MS2), and then scores only the best trial on
+        VALIDATION, once. TODO(author): best fold MAPE, validation MAPE and whether the gate passed, from the first
+        tuning run on atc (run ID).
+  \item \textbf{Settings as code, not as a lookup.} A tuning run leaves a \texttt{tuned\_settings.py} artifact. I
+        paste it into \path{src/winterload/forecast/model/tuned.py} and commit it, together with the run ID. Weekly
+        retraining then reads the committed settings and logs that run ID, so every registered model leads back to its
+        tuning run and commit, and a rollback is a \texttt{git revert}.
+  \item \textbf{One read of the test year.} \texttt{final\_test} first checks in MLflow that the committed tuning run
+        exists, passed the gate and holds exactly the committed settings. If MLflow is down or a check fails, the
+        execution fails with one error line and the year stays closed. TODO(author): test-year MAPE against the 6.5\%
+        target and the baseline's 7.6\%.
+  \item \textbf{Drift triggers a retrain again.} In MS2 I dropped drift as a trigger. I put it back:
+        \texttt{retrain\_monitor} now retrains when the 7-day MAPE exceeds $0.9\times$ the baseline's \emph{or} at least
+        half of the monitored columns drifted (Evidently, default tests). The HTML report goes to MLflow. Before the
+        final test the reference is the data the champion trained on, because the same weeks a year earlier lie in the
+        closed test year. Champion/challenger still only promotes a better model, and it skips when a comparison already
+        ran in the last 24 hours, so the weekly flow and the trigger can't promote twice on one day.
+        TODO(author): one sentence on how often drift fired in the first weeks of the heating season.
+  \item \textbf{CI.} Ruff and 160 unit tests run on every pull request and push, and the image for atc is only
+        published after they passed. The tests include an end-to-end tuning run against a throwaway MLflow.
+  \item \textbf{What it cost.} LightGBM starts one thread per core. On my 16-core machine, 2000 trees with 255 leaves
+        took 403\,s with 16 threads and 4.4\,s with 4, so the model now uses 4 threads. The local Kestra moved from 1.1 to
+        2.0 to match atc.
+  \item \textbf{Open question on deployment.} atc, MLflow and the notebooks run on my own server (srv67); only the
+        features live in Google Cloud (BigQuery). TODO(author): confirm with the lecturers before MS4 that this counts as
+        the required cloud deployment.
+  \item \textbf{Look at first:} \path{docker/kestra/files/flows/}, \path{src/winterload/pipeline/training/} (tuning,
+        champion/challenger, final test), \path{src/winterload/forecast/lifecycle/}, the experiments on ml.darker.dev,
+        and \path{docs/media/system_design.svg}.
+\end{itemize}
+
+\section{Response to MS2 reviews}
+TODO(author): one entry per point from both reviews and the editorial summary, with status (Changed / Partly /
+Rejected / Not yet) and the commit or file. Same point from both reviewers: answer once, name both labels.
+
+\point{A1}{TODO title}{TODO status}{}
+TODO.
+
+\point{B1}{TODO title}{TODO status}{}
+TODO.
+
+\point{E1}{TODO title}{TODO status}{}
+TODO.
+
+\end{document}

@@ -2,9 +2,21 @@
 
 see `docs/proposal.pdf`
 
+![System design](docs/media/system_design.svg)
+
+Production runs on [atc.darker.dev](https://atc.darker.dev) (Kestra) and logs to [ml.darker.dev](https://ml.darker.dev)
+(MLflow). The same flows and image also run locally with docker compose, see below.
+
 # Infrastructure
-First, copy `/.env.example` to `/.env` and `/.env.docker.example` to `/.env.docker`
-Then adjust the values in it according to the documentation inside.
+First, copy the two example files and adjust the values according to the comments inside:
+
+```shell
+cp .env.example .env
+cp .env.docker.example .env.docker
+```
+
+`.env` holds the settings for `uv run` on your machine, `.env.docker` overrides the ones that differ inside the
+containers (Docker service names instead of `localhost`).
 
 ## Local
 The infrastructure is managed using [docker compose](https://docs.docker.com/desktop/). Spin it up using [make](https://www.gnu.org/software/make/):
@@ -13,15 +25,27 @@ The infrastructure is managed using [docker compose](https://docs.docker.com/des
 make setup
 ```
 
-after the first setup, you can start using the docker containers from now on with this comman. 
+after the first setup, you can start using the docker containers from now on with this command.
 
 ```shell
 make up
 ```
 
-_or alternatively copy the command from the @docker line below_ `up:` _in the file `./Makefile`_
+Without make, the same steps are:
+
+```shell
+docker compose --env-file .env --env-file .env.docker up -d --wait      # make up (and the first step of make setup)
+docker compose --env-file .env --env-file .env.docker build winterload  # make build
+uv run python -c "from winterload.storage import setup; setup()"        # make setup: create the tables
+uv run --env-file .env feast --chdir src/winterload/feature_repo/ apply # make apply: register the feature views
+```
+
+With `OFFLINE_STORAGE=bigquery`, `make setup` also runs Terraform first, see [Terraform](#terraform).
 
 Running all containers might take a while during first setup.
+
+LightGBM needs the OpenMP runtime for `uv run` outside Docker: `brew install libomp` on macOS, `libgomp1` on
+Debian/Ubuntu. The image already contains it.
 
 Stopping all containers without removing the data can be done using
 
@@ -125,16 +149,48 @@ docker compose --env-file .env --env-file .env.docker up -d --wait mlflow
 
 The training pipeline needs this server, so start it before `uv run winterload`. `MLFLOW_TRACKING_URI` selects the
 server (default: `http://localhost:5001`). Runs, models and aliases live in the Docker volume `mlflow_data`, and
-`make stop` deletes that volume.
+`make stop` deletes that volume. If the server can't be reached, a stage stops with one `TrackingUnavailable` error line and
+exit code 1.
+
+The record of the project is [ml.darker.dev](https://ml.darker.dev): every scheduled run on atc.darker.dev logs there. Local
+runs log to the compose service by default. To log a local run to ml.darker.dev instead, set in `.env` (and the URI in
+`.env.docker` too, for a local Kestra):
+
+```shell
+MLFLOW_TRACKING_URI=https://ml.darker.dev
+MLFLOW_TRACKING_USERNAME=<your MLflow username>
+MLFLOW_TRACKING_PASSWORD=<personal access token from the MLflow UI>
+```
+
+Each stage logs to its own experiment, and every run carries the commit of the image (tag `git_sha`, `local` for a local
+build):
+
+| Experiment | Runs |
+|---|---|
+| `winterload/training` | `champion_challenger`, `final_test` |
+| `winterload/tuning` | `tuning`, with one nested run per Optuna trial |
+| `winterload/monitoring` | `retrain_monitor`, `drift_report` (Evidently HTML report and JSON as artifacts) |
+| `winterload/studies` | the comparisons of `notebooks/training/feature_study.ipynb` |
 
 The registered model `winterload-load-forecast` has two aliases. `champion` is the winner refit on all data, for
 inference. `champion_eval` stops at the cutoff of the run that promoted it, so later runs can compare against it on
-hours it has not seen.
+hours it has not seen. Its tag `training_end` records that cutoff.
+
+### Notebooks on note.darker.dev
+
+The notebooks also run on [note.darker.dev](https://note.darker.dev), where `MLFLOW_TRACKING_URI` already points at
+ml.darker.dev (signed in as the service account `note`) and S3 is configured to use the servers S3 storage. The features live in BigQuery, so put the
+GCP service account key (`secrets/gcp-service-account.json`) into your note home and a `.env` next to the clone with
+`OFFLINE_STORAGE=bigquery`, `GOOGLE_APPLICATION_CREDENTIALS=<path to the key>`, `FEAST_FS_YAML_FILE_PATH=<absolute path to
+src/winterload/feature_repo/feature_store.bigquery.yaml>` and `RESULTS_PATH=s3://winterload/results`. Leave
+`MLFLOW_TRACKING_URI` and the S3 settings out of that `.env`: note sets them.
 
 ## Orchestrator
 
-[Kestra](https://kestra.io/) runs the pipeline on a schedule. `make up` starts it, and its UI is at
-[localhost:8080](http://localhost:8080). Log in with `KESTRA_UI_USER` and `KESTRA_UI_PASSWORD` from `.env`.
+[Kestra](https://kestra.io/) runs the pipeline on a schedule. Production is [atc.darker.dev](https://atc.darker.dev), which
+pulls the flows from `main` and the image `ghcr.io/d4rkmindz/hslu-winterload`. Locally, `make up` starts Kestra 2.0 (the same
+major version as atc), and its UI is at [localhost:8080](http://localhost:8080). Log in with `KESTRA_UI_USER` and
+`KESTRA_UI_PASSWORD` from `.env`.
 
 The flows live in `docker/kestra/files/flows`. Kestra loads them on start and picks up changes to the files, and flows saved in
 the UI land in the same folder:
@@ -142,8 +198,12 @@ the UI land in the same folder:
 | Flow | Schedule (Zurich time) | Runs |
 |---|---|---|
 | `daily_forecast` | Daily 07:00 | The three feature backfills over the last 7 days, then `-p inference` |
-| `daily_monitoring` | Daily 08:00 | `-p monitoring` |
-| `weekly_training` | Mondays 06:00 | `-p training` |
+| `daily_monitoring` | Daily 08:00 | `-p monitoring`: retrain triggers (MAPE and drift), publication delays |
+| `weekly_training` | Mondays 06:00 | `-p training`: champion/challenger |
+| `tuning` | 1st of the month 03:00, and manual | `-p training.tuning --trials <trials>` |
+| `final_test` | Manual only | `-p training.final_test`, once |
+
+All training runs through these flows; `uv run winterload -p ...` runs the same code locally, for development.
 
 `daily_forecast` fetches the weather forecasts up to tomorrow, the day the 08:00 forecast is for. It re-fetches the load and the
 weather measurements up to yesterday with `-f`, because ENTSO-E revises the load and ERA5 lags by days. After downtime, run it
@@ -169,9 +229,36 @@ default run, because it runs on its own daily schedule:
 uv run winterload -p monitoring
 ```
 
-It has two steps. `retrain_monitor` scores the model and the seasonal-naive baseline on the last 7 days and runs
-champion/challenger when the model's MAPE exceeds 0.9 x the baseline's. `publication_probe` appends how late the load and
-weather sources publish to the result store.
+It has two steps. `retrain_monitor` scores the model and the seasonal-naive baseline on the last 7 days, and measures the
+drift of the same days with Evidently (`drift_report`). It runs champion/challenger when the model's MAPE exceeds 0.9 x the
+baseline's, or when at least half of the monitored columns (target, load lags, weather, calendar) drifted. Until the final test
+the drift reference is the data `champion_eval` trained on, afterwards the same weeks one year earlier: before that, those
+weeks lie in the closed test year. `publication_probe` appends how late the load and weather sources publish to the result
+store.
+
+## Training
+
+| Stage | What it does |
+|---|---|
+| `-p training` | champion/challenger: the challenger trains up to 8 weeks ago, both models score those 8 weeks, the winner refits on all data. Skips if another comparison finished in the last 24 hours. |
+| `-p training.tuning --trials 100` | Optuna (TPE, seed 42, median pruning) over the LightGBM settings. Each trial scores six chronological 8-week folds. Before the final test: the folds lie in TRAIN, the run first scores the default model on VALIDATION (the 10% target) and then the best trial once (the gate). Afterwards: the newest folds before the champion/challenger holdout, no gate. |
+| `-p training.final_test` | The one read of the test year: checks the committed tuning run in MLflow, fits on TRAIN and VALIDATION, scores the year against the baseline (target MAPE <= 6.5%). |
+
+Tuned settings take effect through a commit, not at runtime: each tuning run logs an artifact `tuned_settings.py`. Paste it
+into `src/winterload/forecast/model/tuned.py` and commit it. Until then champion/challenger trains with LightGBM's defaults.
+`TUNING_RUN_ID` stays next to the settings, champion/challenger logs it as `settings_source`, and `final_test` refuses to
+open the year unless that run exists, passed the gate and holds exactly the committed settings (`--tuning-run-id` checks a
+different run).
+
+## Tests and CI
+
+```shell
+make test   # uv run pytest
+make lint   # uv run ruff check .
+```
+
+`.github/workflows/ci.yml` runs both on every pull request and push to `main`. `publish-image.yml` publishes the image for
+atc only after CI passed on `main`.
 
 # Data access and results
 
