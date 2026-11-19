@@ -19,7 +19,8 @@ services:
       retries: 12
 
   kestra:
-    image: kestra/kestra:v1.1
+    # atc.darker.dev runs Kestra 2.x as well, and both load the same flow files.
+    image: kestra/kestra:v2.0.10
     container_name: winterload-kestra
     restart: unless-stopped
     # Kestra waits up to 5m for running tasks before it stops. Wait a little longer than that.
@@ -56,10 +57,15 @@ services:
       ENV_S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       ENV_S3_DEFAULT_REGION: ${S3_DEFAULT_REGION:-us-east-1}
       ENV_RESULTS_PATH: ${RESULTS_PATH:-s3://winterload/results}
-      ENV_MLFLOW_TRACKING_URI: http://mlflow:5000
+      # .env.docker sets the compose service (http://mlflow:5000). Point it at https://ml.darker.dev, with the
+      # username and access token below, to log local Kestra runs there instead (README, Experiment tracking).
+      ENV_MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      ENV_MLFLOW_TRACKING_USERNAME: ${MLFLOW_TRACKING_USERNAME:-}
+      ENV_MLFLOW_TRACKING_PASSWORD: ${MLFLOW_TRACKING_PASSWORD:-}
       # OFFLINE_STORAGE=bigquery only. The task containers mount the secrets directory from the host,
-      # so this has to be a host path: run `make up` (or docker compose) from the project root.
-      ENV_SECRETS_DIR: ${PWD}/secrets
+      # so this has to be an absolute host path: run `make up` (or docker compose) from the project root,
+      # or set SECRETS_DIR in .env if your shell doesn't set PWD.
+      ENV_SECRETS_DIR: ${SECRETS_DIR:-${PWD}/secrets}
       ENV_GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/gcp-service-account.json}
     volumes:
       - kestra_files:/app/storage

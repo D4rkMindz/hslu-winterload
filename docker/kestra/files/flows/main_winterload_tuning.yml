@@ -1,0 +1,69 @@
+id: tuning
+namespace: winterload
+description: |
+  Optuna search over the LightGBM settings: the preliminary model (LightGBM's defaults) first, then
+  `trials` trials, each a nested MLflow run in experiment winterload/tuning. Before the final test it tunes
+  on the fixed folds in TRAIN and scores the best trial once on VALIDATION (the gate final_test checks);
+  after it, on the newest folds before the champion/challenger holdout, without a gate.
+
+  The result takes effect only once its `tuned_settings.py` artifact is pasted into
+  src/winterload/forecast/model/tuned.py and committed (config-as-code).
+
+  Manual, plus monthly on the 1st at 03:00 Zurich, before weekly_training and the daily flows.
+
+concurrency:
+  limit: 1
+
+inputs:
+  - id: trials
+    type: INT
+    defaults: 100
+    description: Optuna trials; the first one is LightGBM's defaults
+
+tasks:
+  - id: tuning
+    # 100 trials of 6 folds each take well under an hour; pruning stops weak trials early.
+    timeout: PT4H
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: "{{ envs.winterload_image ?? 'winterload' }}"
+    # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+      # Empty on atc (its mlflow-internal proxy signs in); set for ml.darker.dev from a local Kestra
+      MLFLOW_TRACKING_USERNAME: "{{ envs.mlflow_tracking_username ?? '' }}"
+      MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
+    commands:
+      # Kestra's working directory isn't writable for the image's nonroot user
+      - cd /app
+      - winterload -p training.tuning --trials {{ inputs.trials }}
+
+triggers:
+  - id: monthly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 3 1 * *"
+    timezone: Europe/Zurich
+    # A missed month waits for the next one or a manual run.
+    recoverMissedSchedules: NONE

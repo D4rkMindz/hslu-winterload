@@ -2,7 +2,9 @@ id: daily_monitoring
 namespace: winterload
 description: |
   Daily at 08:00 Zurich, when the forecast is issued. `retrain_monitor` scores the model and the
-  seasonal-naive baseline on the last 7 days and runs champion/challenger when the trigger fires.
+  seasonal-naive baseline on the last 7 days, measures the Evidently drift of the same days
+  (run drift_report, with its HTML report), and runs champion/challenger when either trigger fires.
+  All of it logs to MLflow (experiment winterload/monitoring).
   `publication_probe` logs how late the load and weather sources publish.
 
 concurrency:
@@ -38,6 +40,9 @@ tasks:
       FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
       RESULTS_PATH: "{{ envs.results_path }}"
       MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+      # Empty on atc (its mlflow-internal proxy signs in); set for ml.darker.dev from a local Kestra
+      MLFLOW_TRACKING_USERNAME: "{{ envs.mlflow_tracking_username ?? '' }}"
+      MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
     commands:
       # Kestra's working directory isn't writable for the image's nonroot user
       - cd /app

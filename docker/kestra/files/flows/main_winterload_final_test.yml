@@ -1,0 +1,58 @@
+id: final_test
+namespace: winterload
+description: |
+  The one-time final test on the held-out year 2025-09-23 to 2026-09-23 (docs/proposal.pdf: MAPE <= 6.5%).
+  Manual only, no trigger.
+
+  It first checks in MLflow that the tuning run committed next to TUNED_SETTINGS (or `tuning_run_id`)
+  exists, passed the validation gate and holds exactly the committed settings. If MLflow is unreachable or
+  any check fails, the execution fails with one error line and the year stays closed. Then it fits the
+  tuned model on TRAIN and VALIDATION, scores the year against the seasonal-naive baseline and logs run
+  `final_test` in experiment winterload/training. The year can be read once: a second run fails.
+
+concurrency:
+  limit: 1
+
+inputs:
+  - id: tuning_run_id
+    type: STRING
+    required: false
+    description: Tuning run to check instead of TUNING_RUN_ID in src/winterload/forecast/model/tuned.py
+
+tasks:
+  - id: final_test
+    type: io.kestra.plugin.scripts.shell.Commands
+    containerImage: "{{ envs.winterload_image ?? 'winterload' }}"
+    # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
+      networkMode: "{{ envs.network }}"
+      volumes:
+        - "{{ envs.secrets_dir }}:/app/secrets:ro"
+    env:
+      LOG_LEVEL: "{{ envs.log_level }}"
+      ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
+      FEAST_PROJECT: "{{ envs.feast_project }}"
+      FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"
+      OFFLINE_STORAGE: "{{ envs.offline_storage }}"
+      GCP_PROJECT_ID: "{{ envs.gcp_project_id }}"
+      BIGQUERY_DATASET: "{{ envs.bigquery_dataset }}"
+      BIGQUERY_LOCATION: "{{ envs.bigquery_location }}"
+      GOOGLE_APPLICATION_CREDENTIALS: "{{ envs.google_application_credentials }}"
+      S3_ENDPOINT: "{{ envs.s3_endpoint }}"
+      AWS_ACCESS_KEY_ID: "{{ envs.s3_access_key_id }}"
+      AWS_SECRET_ACCESS_KEY: "{{ envs.s3_secret_access_key }}"
+      AWS_DEFAULT_REGION: "{{ envs.s3_default_region }}"
+      FSSPEC_S3_ENDPOINT_URL: "{{ envs.s3_endpoint }}"
+      FSSPEC_S3_KEY: "{{ envs.s3_access_key_id }}"
+      FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
+      RESULTS_PATH: "{{ envs.results_path }}"
+      MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+      # Empty on atc (its mlflow-internal proxy signs in); set for ml.darker.dev from a local Kestra
+      MLFLOW_TRACKING_USERNAME: "{{ envs.mlflow_tracking_username ?? '' }}"
+      MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
+    commands:
+      # Kestra's working directory isn't writable for the image's nonroot user
+      - cd /app
+      - winterload -p training.final_test --tuning-run-id "{{ inputs.tuning_run_id ?? '' }}"

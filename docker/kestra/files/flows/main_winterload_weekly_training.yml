@@ -2,7 +2,9 @@ id: weekly_training
 namespace: winterload
 description: |
   Mondays at 06:00 Zurich, before daily_forecast, so Monday's forecast already uses the new champion.
-  Trains the preliminary model, then runs champion/challenger on the most recent 8 weeks.
+  Runs champion/challenger on the most recent 8 weeks, with the committed TUNED_SETTINGS (or LightGBM's
+  defaults while none are committed), and logs to MLflow (experiment winterload/training). It skips when
+  a comparison already ran in the last 24 hours, e.g. one started by daily_monitoring.
 
 concurrency:
   limit: 1
@@ -37,6 +39,9 @@ tasks:
       FSSPEC_S3_SECRET: "{{ envs.s3_secret_access_key }}"
       RESULTS_PATH: "{{ envs.results_path }}"
       MLFLOW_TRACKING_URI: "{{ envs.mlflow_tracking_uri }}"
+      # Empty on atc (its mlflow-internal proxy signs in); set for ml.darker.dev from a local Kestra
+      MLFLOW_TRACKING_USERNAME: "{{ envs.mlflow_tracking_username ?? '' }}"
+      MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
     commands:
       # Kestra's working directory isn't writable for the image's nonroot user
       - cd /app
