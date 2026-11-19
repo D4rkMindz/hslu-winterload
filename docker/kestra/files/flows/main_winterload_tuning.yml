@@ -35,6 +35,8 @@ tasks:
         - "{{ envs.secrets_dir }}:/app/secrets:ro"
     env:
       LOG_LEVEL: "{{ envs.log_level }}"
+      # Log lines that carry their level, so Kestra stops showing stderr as errors (winterload.log_format)
+      LOG_FORMAT: kestra
       ENTSOE_API_KEY: "{{ envs.entsoe_api_key }}"
       FEAST_PROJECT: "{{ envs.feast_project }}"
       FEAST_OFFLINE_STORE_PATH: "{{ envs.feast_offline_store_path }}"

@@ -6,8 +6,10 @@ code that ran it. MLFLOW_TRACKING_URI picks the server: the local docker compose
 proxy in front of it on atc.darker.dev and note.darker.dev.
 """
 
+import contextlib
 import datetime as dt
 import json
+import sys
 import warnings
 from typing import Any
 
@@ -174,13 +176,16 @@ class ChampionRepository:
         self._client.set_registered_model_alias(REGISTERED_MODEL_NAME, SERVING_ALIAS, version)
 
     def _register(self, model: PreliminaryModel, name: str) -> str:
-        info = mlflow.lightgbm.log_model(
-            model.estimator,
-            name=name,
-            registered_model_name=REGISTERED_MODEL_NAME,
-            serialization_format="skops",
-            skops_trusted_types=SKOPS_TRUSTED_TYPES,
-        )
+        # MLflow prints its registration notices ("Created version '3' ...") straight to sys.stderr, not through
+        # logging, so Kestra would show them as errors. Logging handlers keep the stderr they were created with.
+        with contextlib.redirect_stderr(sys.stdout):
+            info = mlflow.lightgbm.log_model(
+                model.estimator,
+                name=name,
+                registered_model_name=REGISTERED_MODEL_NAME,
+                serialization_format="skops",
+                skops_trusted_types=SKOPS_TRUSTED_TYPES,
+            )
         return str(info.registered_model_version)
 
     def _load(self, alias: str) -> PreliminaryModel:

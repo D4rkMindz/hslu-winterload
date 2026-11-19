@@ -32,16 +32,29 @@ os.environ.setdefault("MLFLOW_CONFIGURE_LOGGING", "false")
 # itself (logged, not printed) is still visible even if LOG_LEVEL ends up invalid.
 #
 # Kestra (like most log collectors) counts every stderr line as an error, so INFO and DEBUG go to stdout
-# and only WARNING and up to stderr.
-_stdout_handler = logging.StreamHandler(sys.stdout)
-_stdout_handler.addFilter(lambda record: record.levelno < logging.WARNING)
-_stderr_handler = logging.StreamHandler(sys.stderr)
-_stderr_handler.setLevel(logging.WARNING)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-    handlers=[_stdout_handler, _stderr_handler],
-)
+# and only WARNING and up to stderr. The Kestra flows set LOG_FORMAT=kestra instead: every record then goes
+# to stdout as a Kestra log line that carries its level (winterload.log_format), so a WARNING shows as one.
+LOG_FORMAT = os.environ.get("LOG_FORMAT", "text")
+if LOG_FORMAT == "kestra":
+    from winterload.log_format import KestraFormatter
+
+    _kestra_handler = logging.StreamHandler(sys.stdout)
+    _kestra_handler.setFormatter(KestraFormatter())
+    logging.basicConfig(level=logging.INFO, handlers=[_kestra_handler])
+    # MLflow's tqdm bars write to stderr, so each step would show up as an error
+    os.environ.setdefault("MLFLOW_ENABLE_ARTIFACTS_PROGRESS_BAR", "false")
+else:
+    _stdout_handler = logging.StreamHandler(sys.stdout)
+    _stdout_handler.addFilter(lambda record: record.levelno < logging.WARNING)
+    _stderr_handler = logging.StreamHandler(sys.stderr)
+    _stderr_handler.setLevel(logging.WARNING)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        handlers=[_stdout_handler, _stderr_handler],
+    )
+# warnings.warn() otherwise prints two raw lines to stderr; this logs it as one WARNING on logger py.warnings
+logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
 
 
