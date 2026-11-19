@@ -23,7 +23,9 @@ RUN ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 # UV_LINK_MODE: Copy from the cache instead of linking since it's a mounted volume
 # UV_NO_DEV: Omit development dependencies
 # UV_TOOL_BIN_DIR: Ensure installed tools can be executed out of the box
+# GIT_PYTHON_REFRESH: MLflow looks for git to tag runs with the commit; the image has none, so no warnings.
 ENV PYTHONUNBUFFERED=1 \
+    GIT_PYTHON_REFRESH=quiet \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_NO_DEV=1 \
@@ -44,6 +46,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
+
+# The commit this image was built from. The image has no .git, so every MLflow run gets it from here
+# (winterload.config: GIT_SHA). publish-image.yml passes it; local builds stay "local".
+ARG GIT_SHA=local
+ENV GIT_SHA=${GIT_SHA}
 
 # nonroot needs to write into /app (e.g. requests_cache's sqlite file at the CWD)
 RUN chown -R nonroot:nonroot /app

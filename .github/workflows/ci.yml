@@ -1,0 +1,35 @@
+name: CI
+
+# Lint and unit tests on every pull request and every push to main. publish-image.yml only publishes an
+# image after this workflow passed on main, so atc.darker.dev never pulls an untested image.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # The settings need the variables from .env.example; the tests themselves call no external service.
+      - name: Test
+        run: |
+          cp .env.example .env
+          uv run pytest

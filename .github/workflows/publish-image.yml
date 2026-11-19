@@ -2,8 +2,12 @@ name: Publish image
 
 # Publishes the image the Kestra flows run in to ghcr.io/d4rkmindz/hslu-winterload (tags: latest and the commit SHA).
 # atc (the standalone Kestra on srv67) pulls it; local runs keep using the image built by docker compose.
+# It runs once CI (ci.yml) passed on main, so a commit that fails lint or tests never reaches atc. A manual run
+# publishes the chosen branch without that check.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -13,9 +17,15 @@ permissions:
 
 jobs:
   publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    env:
+      # The commit CI tested; on a manual run, the chosen branch's head
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
 
       - name: Image name
         id: image
@@ -36,8 +46,11 @@ jobs:
           # srv67 is x86
           platforms: linux/amd64
           push: true
+          # Every MLflow run carries it (Dockerfile, winterload.config: GIT_SHA)
+          build-args: |
+            GIT_SHA=${{ env.SHA }}
           tags: |
             ${{ steps.image.outputs.name }}:latest
-            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:${{ env.SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
