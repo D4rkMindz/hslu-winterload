@@ -12,6 +12,7 @@ import datetime as dt
 import pandas as pd
 
 from winterload import COORDINATES, Coordinate
+from winterload.forecast.features.completeness import local_hours
 from winterload.forecast.features.dataset import FIRST_WEATHER_DAY, local_day_bounds, weather_run
 from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.pipeline.features.openmeteo import OpenMeteoBackfillPipeline
@@ -21,6 +22,9 @@ from winterload.source.openmeteo import HOURLY_VARIABLES, OpenMeteo, OpenMeteoMo
 class WeatherForecastBackfill(OpenMeteoBackfillPipeline):
     name = "weather_forecast_stats"
     table = "weather_forecast"
+
+    def expected_rows(self, day: dt.date) -> int:
+        return len(COORDINATES) * local_hours(day)
 
     def run(self, start_date: dt.date, end_date: dt.date,
             force: bool = False, cities: list[Coordinate] = COORDINATES) -> None:

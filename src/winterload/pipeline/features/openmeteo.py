@@ -38,6 +38,7 @@ class OpenMeteoBackfillPipeline(BackfillPipeline):
     def run(self, start_date: dt.date, end_date: dt.date,
             force: bool = False, cities: list[Coordinate] = COORDINATES) -> None:
         # single-run data never changes once published -- cache it for the lifetime of a long backfill
+        today = dt.datetime.now(dt.UTC).date()
         client = OpenMeteo(cache_expire_after=30 * 86400)
         written = skipped = failed = 0
         day = start_date
@@ -52,8 +53,14 @@ class OpenMeteoBackfillPipeline(BackfillPipeline):
                 skipped += 1
                 day += dt.timedelta(days=1)
                 continue
-            if retry(lambda: self.write_day(self.build_day(client, day, cities), day),
-                     f"Backfilling {day} ({len(cities)} cities)"):
+            checks: list[bool] = []
+
+            def backfill_day() -> None:
+                frame = self.build_day(client, day, cities)
+                self.write_day(frame, day)
+                checks.append(self.check_day(len(frame), day, today))
+
+            if retry(backfill_day, f"Backfilling {day} ({len(cities)} cities)") and checks[-1]:
                 written += 1
             else:
                 failed += 1

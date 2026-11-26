@@ -14,16 +14,22 @@ from typing import Any
 import pandas as pd
 
 from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
+from winterload.errors import StageError
+from winterload.forecast.features.completeness import is_final
 from winterload.pipeline.base import Pipeline
 
 RETRY_ATTEMPTS = 2
 RETRY_WAIT_SECONDS = 30
 
 __all__ = [
-    "BackfillPipeline", "DEFAULT_START_DATE", "DEFAULT_END_DATE",
+    "BackfillPipeline", "DaysRejected", "DEFAULT_START_DATE", "DEFAULT_END_DATE",
     "RETRY_ATTEMPTS", "RETRY_WAIT_SECONDS",
     "discover_pipelines", "retry", "main",
 ]
+
+class DaysRejected(StageError):
+    """A backfill rejected days after repeated failures or an incomplete final day."""
+
 
 class FeaturePipeline(Pipeline):
     name: str = "Feature Pipeline"
@@ -75,6 +81,23 @@ class BackfillPipeline(FeaturePipeline):
             "rejected %s day(s) after repeated failures",
             written, skipped, failed,
         )
+        if failed > 0:
+            raise DaysRejected(f"{self.name}: {failed} day(s) rejected")
+
+    def expected_rows(self, day: dt.date) -> int:
+        raise NotImplementedError
+
+    def check_day(self, rows: int, day: dt.date, today: dt.date) -> bool:
+        """False when a final day holds fewer rows than expected. A recent partial day only logs a warning."""
+        expected = self.expected_rows(day)
+        if rows >= expected:
+            return True
+        if not is_final(day, today):
+            self.logger.warning("%s: %s holds %s of %s row(s) so far; a later run fills it", self.name, day,
+                                rows, expected)
+            return True
+        self.logger.error("%s: %s holds %s of %s row(s), and the day is final", self.name, day, rows, expected)
+        return False
 
 
 

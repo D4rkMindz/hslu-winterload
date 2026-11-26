@@ -12,6 +12,7 @@ import pandas as pd
 # fsspec snapshots its env-var config (FSSPEC_S3_*) at first import, so loading .env any later
 # leaves the SeaweedFS S3 credentials unset and historical retrieval fails with NoCredentialsError.
 from winterload.config import settings  # noqa: F401
+from winterload.forecast.features.completeness import LOAD_FLOOR_MW, implausible_load
 from winterload.pipeline.features import DEFAULT_END_DATE, DEFAULT_START_DATE, BackfillPipeline, retry
 from winterload.source.entso_e import EnergyLoadRecord, EntsoE
 
@@ -34,7 +35,12 @@ class EnergyLoadBackfill(BackfillPipeline):
         )
         return result[FEATURE_COLUMNS]
 
+    def expected_rows(self, day: dt.date) -> int:
+        # ENTSO-E days are UTC days, so the check counts distinct hours.
+        return 24
+
     def run(self, start_date: dt.date, end_date: dt.date, force: bool = False) -> None:
+        today = dt.datetime.now(dt.UTC).date()
         client = EntsoE()
         written = skipped = failed = 0
         day = start_date
@@ -45,12 +51,22 @@ class EnergyLoadBackfill(BackfillPipeline):
                 skipped += 1
                 day += dt.timedelta(days=1)
                 continue
-            if retry(
-                    lambda: self.write_day(
-                        self.transform_day(
-                            self.load_day(day, client)
-                        ), day),
-                    f"Backfilling {day}"):
+            checks: list[bool] = []
+
+            def backfill_day() -> None:
+                frame = self.transform_day(self.load_day(day, client))
+                implausible = implausible_load(frame)
+                if implausible.any():
+                    self.logger.error("%s: %s drops %s load hour(s) below %s MW: %s", self.name, day,
+                                      int(implausible.sum()), LOAD_FLOOR_MW,
+                                      ", ".join(str(t) for t in frame.loc[implausible, "event_timestamp"]))
+                frame = frame.loc[~implausible]
+                # Keep the partial day: inference needs the hours that exist.
+                self.write_day(frame, day)
+                checks.append(self.check_day(frame["event_timestamp"].dt.floor("h").nunique(), day, today)
+                              and not implausible.any())
+
+            if retry(backfill_day, f"Backfilling {day}") and checks[-1]:
                 written += 1
             else:
                 failed += 1

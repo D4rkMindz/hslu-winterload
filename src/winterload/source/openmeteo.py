@@ -52,7 +52,11 @@ class OpenMeteo:
     ARCHIVE_URL = "https://archive-api.open-meteo.com"
 
     def __init__(self, cache_expire_after: int = 10):
-        cache_session = requests_cache.CachedSession(".cache", expire_after=cache_expire_after)
+        cache_session = requests_cache.CachedSession(
+            ".cache", expire_after=cache_expire_after,
+            # Only data answers: an error (JSON) would otherwise come back from the cache on every retry.
+            filter_fn=lambda response: response.headers.get("Content-Type", "").startswith("application/octet-stream"),
+        )
         retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
         self.client = openmeteo_requests.Client(session=retry_session)
         self.logger = logging.getLogger(self.__class__.__name__)

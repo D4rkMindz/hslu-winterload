@@ -214,6 +214,8 @@ get no `.env` file. `docker/kestra/docker-compose.yaml` passes the settings to K
 `.env.docker`, and the flows read them as `{{ envs.<name> }}`: `ENV_S3_ENDPOINT` becomes `{{ envs.s3_endpoint }}`. A new
 setting needs an `ENV_*` line there and an `env:` entry in each flow task.
 
+A final day (2+ days old) with missing rows or a load hour below 2,000 MW fails the feature task (exit 1, alert mail). A recent partial day only warns.
+
 ### Local runs stay out of production
 
 Run `make tf-apply` once, then `make dev-data`. Put these two lines into `.env.docker` (it overrides `.env` for docker

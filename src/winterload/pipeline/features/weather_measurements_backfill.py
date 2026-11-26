@@ -21,6 +21,10 @@ class WeatherMeasurementsBackfill(OpenMeteoBackfillPipeline):
     name = "weather_measurements_stats"
     table = "weather_measurements"
 
+    def expected_rows(self, day: dt.date) -> int:
+        # UTC day, ECMWF + ERA5 rows. ERA5 rows exist with NaN values while it lags, so only rows are counted.
+        return len(COORDINATES) * 24 * 2
+
     def load_day(self, client: OpenMeteo, target_day: dt.date,
                  cities: list[Coordinate] = COORDINATES) -> DayResult:
         rows = {}
