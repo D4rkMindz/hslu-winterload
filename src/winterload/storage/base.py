@@ -40,6 +40,11 @@ class Storage(ABC):
         the feature tables, without going through Feast's point-in-time join."""
 
     @abstractmethod
+    def read_appended(self, table: str, column: str, start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+        """Reads the rows of an append-only table whose timestamp `column` lies in `[start, end)`. `column` comes
+        from code, never from input. Returns an empty frame when the table does not exist yet."""
+
+    @abstractmethod
     def read_marker(self, key: str) -> dict[str, Any] | None:
         """Reads a small named JSON marker (e.g. `final_test_year_access`), or None if it was
         never written."""

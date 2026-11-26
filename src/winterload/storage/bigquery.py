@@ -156,6 +156,17 @@ class BigQueryStorage(Storage):
         ])
         return self.client.query(query, job_config=job_config).result().to_dataframe()
 
+    def read_appended(self, table: str, column: str, start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+        query = f"SELECT * FROM `{self.table_id(table)}` WHERE {column} >= @start AND {column} < @end"
+        job_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("start", "TIMESTAMP", start),
+            bigquery.ScalarQueryParameter("end", "TIMESTAMP", end),
+        ])
+        try:
+            return self.client.query(query, job_config=job_config).result().to_dataframe()
+        except NotFound:
+            return pd.DataFrame()
+
     def read_marker(self, key: str) -> dict[str, Any] | None:
         query = f"SELECT data FROM `{self.table_id(MARKERS_TABLE)}` WHERE key = @key ORDER BY updated_at DESC LIMIT 1"
         job_config = bigquery.QueryJobConfig(query_parameters=[

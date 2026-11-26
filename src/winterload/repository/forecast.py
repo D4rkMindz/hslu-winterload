@@ -3,6 +3,7 @@
 the view `winterload_forecasts_latest` (see BigQueryStorage.setup) holds the newest result per model and hour.
 """
 
+import datetime as dt
 import uuid
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,10 @@ if TYPE_CHECKING:
 
 FORECAST_TABLE = "winterload_forecasts"
 RUN_TABLE = "winterload_forecast_runs"
+
+
+def _midnight(day: dt.date) -> dt.datetime:
+    return dt.datetime.combine(day, dt.time.min)
 
 
 class ForecastRepository:
@@ -33,6 +38,24 @@ class ForecastRepository:
             "kestra_execution_id": run.kestra_execution_id,
         }]))
         return sum(len(frame) for frame in rows)
+
+    def scheduled(self, start: dt.date, end: dt.date, role: str) -> pd.Series:
+        """The result of the newest scheduled run per hour in `[start, end)` for `role`, indexed by
+        `prediction_time` (UTC). A forecast for day D is made on D-1, so runs are read from `start - 2 days`."""
+        empty = pd.Series(dtype="float64", index=pd.DatetimeIndex([], tz="UTC", name="prediction_time"))
+        first_run = _midnight(start - dt.timedelta(days=2))
+        runs = self._storage.read_appended(RUN_TABLE, "started_at", first_run, _midnight(end))
+        if runs.empty or "run_type" not in runs:
+            return empty
+        runs = runs.loc[runs["run_type"] == "scheduled", ["id", "started_at"]].rename(columns={"id": "run_id"})
+        forecasts = self._storage.read_appended(FORECAST_TABLE, "prediction_time", _midnight(start), _midnight(end))
+        if runs.empty or forecasts.empty:
+            return empty
+        joined = forecasts.loc[forecasts["model_role"] == role].merge(runs, on="run_id")
+        newest = joined.sort_values("started_at").drop_duplicates("prediction_time", keep="last")
+        times = pd.to_datetime(newest["prediction_time"], utc=True)
+        index = pd.DatetimeIndex(times, name="prediction_time")
+        return pd.Series(newest["result"].to_numpy(), index=index).sort_index()
 
     @staticmethod
     def _rows(run: ForecastRun, forecast: ModelForecast) -> pd.DataFrame:

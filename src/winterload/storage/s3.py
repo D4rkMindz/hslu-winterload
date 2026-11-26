@@ -92,6 +92,17 @@ class S3Storage(Storage):
         in_range = (df["event_timestamp"] >= start_ts) & (df["event_timestamp"] < end_ts)
         return df.loc[in_range].sort_values("event_timestamp").reset_index(drop=True)
 
+    def read_appended(self, table: str, column: str, start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+        path = f"{settings.feast_store_path}/{table}"
+        filesystem = get_filesystem(path)
+        if not filesystem.exists(path):
+            return pd.DataFrame()
+        df = pq.read_table(path, filesystem=filesystem).to_pandas()
+        # Naive bounds count as UTC, like the rest of the store.
+        bounds = [pd.Timestamp(bound) for bound in (start, end)]
+        lower, upper = [b if b.tzinfo else b.tz_localize("UTC") for b in bounds]
+        return df.loc[(df[column] >= lower) & (df[column] < upper)].reset_index(drop=True)
+
     def marker_path(self, key: str) -> str:
         return f"{settings.feast_store_path}/_markers/{key}.json"
 
