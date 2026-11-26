@@ -37,6 +37,7 @@ packages = ["src/winterload"]
 dev = [
     "pydevd-pycharm==262.10968.92",
     "pytest>=8.4.0",
+    "pytest-cov>=7.1.0",
     "ruff==0.17.5",
 ]
 

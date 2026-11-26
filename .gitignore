@@ -30,3 +30,7 @@ mlartifacts/
 *.pkl
 *.joblib
 *.skops
+
+# pytest-cov
+.coverage
+coverage.xml

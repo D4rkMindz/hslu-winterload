@@ -32,4 +32,22 @@ jobs:
       - name: Test
         run: |
           cp .env.example .env
-          uv run pytest
+          uv run pytest --cov=winterload --cov-report=term-missing --cov-report=xml
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage.xml
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v4
+      # Builds the image Kestra runs, without pushing: a broken Dockerfile shows up in the PR, not on atc.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          build-args: GIT_SHA=${{ github.sha }}
