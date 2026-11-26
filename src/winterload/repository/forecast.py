@@ -29,7 +29,8 @@ class ForecastRepository:
             self._storage.append(FORECAST_TABLE, pd.concat(rows, ignore_index=True))
         self._storage.append(RUN_TABLE, pd.DataFrame([{
             "id": run.id, "started_at": run.started_at, "completed_at": run.completed_at,
-            "target_day": run.target_day,
+            "target_day": run.target_day, "run_type": run.run_type,
+            "kestra_execution_id": run.kestra_execution_id,
         }]))
         return sum(len(frame) for frame in rows)
 

@@ -19,6 +19,8 @@ from winterload.forecast.inference import (
     BASELINE,
     BASELINE_MODEL_ID,
     CHAMPION,
+    MANUAL,
+    SCHEDULED,
     ForecastRun,
     ModelForecast,
     split_complete,
@@ -40,7 +42,8 @@ class InferencePipeline(Pipeline):
     name = "inference"
     order: int = 300
 
-    def run(self, target_day: dt.date | None = None, models: Sequence[str] = (CHAMPION,)) -> None:
+    def run(self, target_day: dt.date | None = None, models: Sequence[str] = (CHAMPION,),
+            scheduled_at: str = "", kestra_execution_id: str = "") -> None:
         target_day = target_day or tomorrow_in_zurich(dt.datetime.now(dt.UTC))
         started_at = dt.datetime.now(dt.UTC)
         run_id = str(uuid.uuid4())
@@ -70,10 +73,12 @@ class InferencePipeline(Pipeline):
                 problems.append(f"{role} skipped {len(missing)} hour(s)")
             if len(result):
                 forecasts.append(ModelForecast(model_id, role, complete["event_timestamp"], result))
-        run = ForecastRun(run_id, started_at, dt.datetime.now(dt.UTC), target_day)
+        run_type = SCHEDULED if scheduled_at else MANUAL
+        run = ForecastRun(run_id, started_at, dt.datetime.now(dt.UTC), target_day, run_type,
+                          kestra_execution_id or None)
         written = ForecastRepository(self.storage).save(run, forecasts)
-        self.logger.info("INFERENCE: run %s for %s (%s hour(s)) wrote %s forecast row(s) for %s", run_id,
-                         target_day, len(frame), written,
+        self.logger.info("INFERENCE: run %s (%s) for %s (%s hour(s)) wrote %s forecast row(s) for %s",
+                         run_id, run_type, target_day, len(frame), written,
                          ", ".join(forecast.model_role for forecast in forecasts) or "no model")
         if problems:
             summary = f"{target_day}: " + "; ".join(problems)

@@ -101,3 +101,19 @@ def test_a_model_that_wants_a_column_the_frame_lacks_fails_alone(frame, monkeypa
     with pytest.raises(InferenceIncomplete, match=r"champion failed \(KeyError\)"):
         _pipeline(storage).run(TARGET_DAY, ["champion", "baseline"])
     assert set(storage.appends[0][1]["model_role"]) == {"baseline"}
+
+
+def test_a_scheduled_run_stores_its_type_and_kestra_execution_id(frame):
+    storage = AppendStorage()
+    _pipeline(storage).run(TARGET_DAY, ["baseline"], scheduled_at="2026-11-26T06:00:00Z", kestra_execution_id="abc")
+    run = storage.appends[1][1].iloc[0]
+    assert run["run_type"] == "scheduled"
+    assert run["kestra_execution_id"] == "abc"
+
+
+def test_a_run_without_schedule_or_execution_id_is_manual(frame):
+    storage = AppendStorage()
+    _pipeline(storage).run(TARGET_DAY, ["baseline"])
+    run = storage.appends[1][1].iloc[0]
+    assert run["run_type"] == "manual"
+    assert run["kestra_execution_id"] is None

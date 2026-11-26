@@ -67,6 +67,8 @@ APPEND_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
         bigquery.SchemaField("started_at", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("completed_at", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("target_day", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("run_type", "STRING"),
+        bigquery.SchemaField("kestra_execution_id", "STRING"),
     ],
 }
 APPEND_PARTITIONS = {"winterload_forecasts": "prediction_time", "winterload_forecast_runs": "started_at"}
@@ -194,6 +196,11 @@ class BigQueryStorage(Storage):
             bq_table = bigquery.Table(self.table_id(table), schema=schema)
             bq_table.time_partitioning = bigquery.TimePartitioning(field=APPEND_PARTITIONS[table])
             self.client.create_table(bq_table, exists_ok=True)
+        runs = self.table_id("winterload_forecast_runs")
+        # Tables from before run_type existed: add the columns, and mark their earlier rows as manual test runs.
+        self.client.query(f"ALTER TABLE `{runs}` ADD COLUMN IF NOT EXISTS run_type STRING, "
+                          f"ADD COLUMN IF NOT EXISTS kestra_execution_id STRING").result()
+        self.client.query(f"UPDATE `{runs}` SET run_type = 'manual' WHERE run_type IS NULL").result()
         self.client.query(self._latest_forecasts_sql()).result()
         logger.info("Dataset %r ready with tables %s and view %s", dataset.dataset_id,
                     ", ".join([*SCHEMAS, MARKERS_TABLE, *APPEND_SCHEMAS]), LATEST_FORECASTS_VIEW)

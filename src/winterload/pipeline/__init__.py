@@ -69,6 +69,9 @@ def main() -> None:
     parser.add_argument("--model", action="append", choices=MODEL_ROLES, default=None,
                         help=f"inference: one of {', '.join(MODEL_ROLES)}, repeat it for several "
                              f"(default: {CHAMPION})")
+    parser.add_argument("--scheduled-at", default="",
+                        help="inference: the Kestra schedule date; set means a scheduled run")
+    parser.add_argument("--kestra-execution-id", default="")
     args = parser.parse_args()
 
     # Each stage is bound to exactly the args it needs, right here where we know them -- the
@@ -84,7 +87,9 @@ def main() -> None:
         "training.tuning": lambda: TuningPipeline().run(trials=args.trials),
         # Kestra passes an empty string when its input is left blank.
         "training.final_test": lambda: FinalTestPipeline().run(tuning_run_id=args.tuning_run_id or None),
-        "inference": lambda: InferencePipeline().run(target_day=args.target_day, models=args.model or [CHAMPION]),
+        "inference": lambda: InferencePipeline().run(
+            target_day=args.target_day, models=args.model or [CHAMPION], scheduled_at=args.scheduled_at,
+            kestra_execution_id=args.kestra_execution_id),
         "monitoring": lambda: MonitoringPipeline.run_all(),
     }
     selected = args.pipeline or DEFAULT_STAGE_ORDER

@@ -310,7 +310,9 @@ GROUP BY f.model_id, f.prediction_time, f.result
 ```
 
 The tables and the view come from `storage.setup()` (`make setup`, or once after an update:
-`uv run python -c "from winterload.storage import setup; setup()"`). On S3 each run writes one Parquet
+`uv run python -c "from winterload.storage import setup; setup()"`). `winterload_forecast_runs` also records
+`run_type` (`scheduled` = started by Kestra's Schedule trigger, `manual` = anything else, including a manual Kestra
+run and every CLI run) and `kestra_execution_id`. `make setup` adds both columns to existing tables. On S3 each run writes one Parquet
 file per table, and there is no view.
 
 ## Tests and CI

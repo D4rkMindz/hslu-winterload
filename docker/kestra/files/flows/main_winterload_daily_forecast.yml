@@ -110,7 +110,7 @@ tasks:
       MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
     commands:
       - cd /app
-      - winterload -p inference --target-day {{ render(vars.tomorrow) }} --model champion --model challenger --model baseline
+      - winterload -p inference --target-day {{ render(vars.tomorrow) }} --model champion --model challenger --model baseline --scheduled-at "{{ trigger.date ?? '' }}" --kestra-execution-id {{ execution.id }}
 
 afterExecution:
   # Optional: without ENV_SMTP_HOST (SMTP_HOST in .env) no mail goes out, and the flow runs the same.

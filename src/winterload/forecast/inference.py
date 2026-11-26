@@ -14,6 +14,8 @@ CHAMPION = "champion"
 CHALLENGER = "challenger"
 BASELINE = "baseline"
 MODEL_ROLES = (CHAMPION, CHALLENGER, BASELINE)
+SCHEDULED = "scheduled"
+MANUAL = "manual"
 # The seasonal-naive baseline has no registry version, so its model_id names the rule.
 BASELINE_MODEL_ID = "seasonal_naive_168h"
 
@@ -24,6 +26,8 @@ class ForecastRun:
     started_at: dt.datetime
     completed_at: dt.datetime
     target_day: dt.date
+    run_type: str
+    kestra_execution_id: str | None
 
 
 @dataclass(frozen=True)

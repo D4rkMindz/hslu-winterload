@@ -17,7 +17,7 @@ class AppendStorage:
 
 
 RUN = ForecastRun("run-1", dt.datetime(2026, 11, 26, 6, tzinfo=dt.UTC), dt.datetime(2026, 11, 26, 6, 1, tzinfo=dt.UTC),
-                  dt.date(2026, 11, 27))
+                  dt.date(2026, 11, 27), run_type="manual", kestra_execution_id=None)
 HOURS = pd.Series(pd.date_range("2026-11-26 23:00", periods=3, freq="h", tz="UTC"), index=[5, 6, 7])
 
 
@@ -37,7 +37,8 @@ def test_forecasts_go_first_and_the_run_last():
     assert list(forecasts["prediction_time"]) == list(HOURS) + list(HOURS.iloc[:2])
     run = storage.appends[1][1]
     assert run.to_dict("records") == [{"id": "run-1", "started_at": RUN.started_at,
-                                       "completed_at": RUN.completed_at, "target_day": RUN.target_day}]
+                                       "completed_at": RUN.completed_at, "target_day": RUN.target_day,
+                                       "run_type": "manual", "kestra_execution_id": None}]
 
 
 def test_a_run_without_forecasts_still_records_the_run():
