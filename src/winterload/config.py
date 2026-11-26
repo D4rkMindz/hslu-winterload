@@ -66,6 +66,10 @@ class Settings(BaseSettings):
 
     entsoe_api_key: str = Field(alias="ENTSOE_API_KEY")
 
+    kestra_port: int = Field(default=8080, alias="KESTRA_PORT")
+    kestra_ui_user: str = Field(default="", alias="KESTRA_UI_USER")
+    kestra_ui_password: str = Field(default="", alias="KESTRA_UI_PASSWORD")
+
     feast_project: str = Field(alias="FEAST_PROJECT")
     # feast_store_path: str = Field(default="s3://feast/", alias="FEAST_S3_STORE_PATH") # online
     feast_store_path: str = Field(default="data/offline", alias="FEAST_OFFLINE_STORE_PATH")

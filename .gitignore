@@ -34,3 +34,6 @@ mlartifacts/
 # pytest-cov
 .coverage
 coverage.xml
+
+# Kestra downloads for `make evidence`
+evidence/inbox/

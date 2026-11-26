@@ -140,6 +140,21 @@ class ChampionRepository:
         )
         return runs[0].info.run_id if runs else None
 
+    def runs_since(self, experiment: str, since: dt.datetime) -> pd.DataFrame:
+        """Every run of `experiment` that started at or after `since`. Empty if the experiment does not exist."""
+        columns = ["run_id", "run_name", "started_at", "status", "promoted"]
+        found = self._client.get_experiment_by_name(experiment)
+        if found is None:
+            return pd.DataFrame(columns=columns)
+        runs = self._client.search_runs(
+            [found.experiment_id], filter_string=f"attributes.start_time >= {int(since.timestamp() * 1000)}",
+            max_results=1000, order_by=["attributes.start_time ASC"])
+        return pd.DataFrame([{
+            "run_id": run.info.run_id, "run_name": run.info.run_name,
+            "started_at": dt.datetime.fromtimestamp(run.info.start_time / 1000, dt.UTC).isoformat(),
+            "status": run.info.status, "promoted": run.data.params.get("promoted", ""),
+        } for run in runs], columns=columns)
+
     def load_champion(self) -> ChampionRecord | None:
         """The current champion, or None if no run has promoted one yet."""
         try:

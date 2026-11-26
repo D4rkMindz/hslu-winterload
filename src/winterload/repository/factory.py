@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 
-from winterload.config import settings
+from fsspec.implementations.local import LocalFileSystem
+
+from winterload.config import PROJECT_ROOT, settings
 from winterload.repository.results import ResultRepository
 from winterload.storage import get_filesystem
 
@@ -17,3 +19,8 @@ def champion_repository() -> ChampionRepository:
 
 def result_repository() -> ResultRepository:
     return ResultRepository(settings.results_path, get_filesystem(settings.results_path))
+
+
+def evidence_repository() -> ResultRepository:
+    """The run evidence, which lives in git under docs/runs."""
+    return ResultRepository(str(PROJECT_ROOT / "docs" / "runs"), LocalFileSystem())

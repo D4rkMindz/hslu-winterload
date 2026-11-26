@@ -49,6 +49,15 @@ test:
 lint:
 	@uv run ruff check .
 
+.PHONY: evidence evidence-local
+# Exports the run evidence to docs/runs. FROM= picks the folder with the atc browser downloads.
+evidence:
+	@uv run winterload -p evidence --evidence-from $(or $(FROM),evidence/inbox)
+
+# The same, fetching from the local Kestra (KESTRA_PORT, KESTRA_UI_USER, KESTRA_UI_PASSWORD).
+evidence-local:
+	@uv run winterload -p evidence
+
 ########################################################################################################################
 # Feast feature store
 ########################################################################################################################

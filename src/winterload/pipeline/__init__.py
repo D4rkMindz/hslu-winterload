@@ -9,11 +9,14 @@ import datetime as dt
 import logging
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
+from winterload.config import settings
 from winterload.errors import StageError
 from winterload.forecast.evaluation.tuning import DEFAULT_TRIALS
 from winterload.forecast.inference import CHAMPION, MODEL_ROLES
+from winterload.pipeline.evidence import EvidenceExport
 from winterload.pipeline.features import FeaturePipeline
 from winterload.pipeline.features.energy_load_backfill import EnergyLoadBackfill
 from winterload.pipeline.features.weather_forecast_backfill import WeatherForecastBackfill
@@ -23,6 +26,7 @@ from winterload.pipeline.monitoring import MonitoringPipeline
 from winterload.pipeline.training import TrainingPipeline
 from winterload.pipeline.training.final_test import FinalTestPipeline
 from winterload.pipeline.training.tuning import TuningPipeline
+from winterload.source.kestra import KestraExport
 
 #: Run order for a plain `winterload` invocation; `-p` may instead pick any subset of these names.
 #: Monitoring stays out: it runs on its own daily schedule with `-p monitoring`. So do tuning and the final
@@ -39,6 +43,7 @@ STAGE_NAMES = [
     "training.final_test",
     "inference",
     "monitoring",
+    "evidence",
 ]
 
 logger = logging.getLogger("winterload.pipeline")
@@ -83,7 +88,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scheduled-at", default="",
                         help="inference: the Kestra schedule date; set means a scheduled run")
     parser.add_argument("--kestra-execution-id", default="")
+    parser.add_argument("--evidence-from", default="",
+                        help="evidence: folder with executions.json and logs*.json from atc "
+                             "(default: fetch from the local Kestra)")
+    parser.add_argument("--since", type=dt.date.fromisoformat, default=dt.date(2026, 11, 6),
+                        help="evidence: first day to cover (default: 2026-11-06)")
     return parser
+
+
+def evidence_export(args: argparse.Namespace) -> KestraExport:
+    if args.evidence_from:
+        return KestraExport.from_files(Path(args.evidence_from))
+    since = dt.datetime.combine(args.since, dt.time(), tzinfo=dt.UTC)
+    return KestraExport.from_api(f"http://localhost:{settings.kestra_port}", settings.kestra_ui_user,
+                                 settings.kestra_ui_password, since)
 
 
 def main() -> None:
@@ -106,6 +124,7 @@ def main() -> None:
             target_day=args.target_day, models=args.model or [CHAMPION], scheduled_at=args.scheduled_at,
             kestra_execution_id=args.kestra_execution_id),
         "monitoring": lambda: MonitoringPipeline.run_all(),
+        "evidence": lambda: EvidenceExport().run(evidence_export(args), args.since),
     }
     # -p only accepts STAGE_NAMES, so a stage missing there could never be selected.
     assert list(stages) == STAGE_NAMES, "STAGE_NAMES is out of sync with the stages above"

@@ -56,6 +56,14 @@ class ResultRepository:
             rows.to_csv(file, index=False)
         return path
 
+    def write_text(self, name: str, text: str, suffix: str = ".log") -> str:
+        """Replaces the text file called `name`. Returns where it was written to, for logging."""
+        path = f"{self._root}/{name}{suffix}"
+        self._filesystem.makedirs(path.rsplit("/", 1)[0], exist_ok=True)
+        with self._filesystem.open(path, "w") as file:
+            file.write(text)
+        return path
+
     def append(self, name: str, rows: pd.DataFrame) -> str:
         """Adds `rows` to the result called `name`. S3 objects can't grow, so this rewrites the object."""
         return self.write(name, pd.concat([self.read(name), rows], ignore_index=True))
