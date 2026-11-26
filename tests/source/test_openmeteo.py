@@ -34,3 +34,11 @@ def test_get_run_metadata_reads_the_static_meta_file(monkeypatch):
 def test_model_names():
     assert FORECAST_MODEL == "ecmwf_ifs"
     assert REANALYSIS_MODEL == "era5"
+
+
+def test_the_cache_keeps_octet_stream_answers_and_skips_json_errors():
+    from types import SimpleNamespace
+    keep = OpenMeteo().client._session.settings.filter_fn
+    assert keep(SimpleNamespace(headers={"Content-Type": "application/octet-stream"}))
+    assert not keep(SimpleNamespace(headers={"Content-Type": "application/json; charset=utf-8"}))
+    assert not keep(SimpleNamespace(headers={}))
