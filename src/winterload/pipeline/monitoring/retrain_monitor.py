@@ -1,24 +1,25 @@
-"""Runs the retrain triggers, reviewer point B3/A5. It scores `champion_eval` and the seasonal-naive
-baseline on the last 7 days, measures the drift of the same days (drift_report), and runs
-champion/challenger when either trigger fires.
+"""Runs the retrain triggers, reviewer point B3/A5. It scores the champion and baseline forecasts that
+winterload.pipeline.inference issued on schedule over the last 7 days against the realised load, measures
+the drift of the same days (drift_report), and runs champion/challenger when either trigger fires.
 
-`champion_eval` stands in for the serving model. The serving model refits on all data, so it has seen
-some of these hours, and this monitor doesn't read the stored forecasts of winterload.pipeline.inference yet.
-`champion_eval` is older, which makes the trigger fire earlier, never later.
+Only hours with a scheduled champion forecast, a scheduled baseline forecast and a realised load count.
 """
 
 import datetime as dt
 
-from winterload.forecast.features.dataset import TARGET_COLUMN
+import pandas as pd
+
+from winterload.forecast.inference import BASELINE, CHAMPION
 from winterload.forecast.lifecycle.retrain_trigger import MIN_MONITORING_HOURS, RetrainTriggerPolicy, monitoring_window
 from winterload.forecast.metrics import mape
-from winterload.forecast.model.baseline import seasonal_naive_forecast
 from winterload.pipeline.monitoring import MonitoringPipeline
 from winterload.pipeline.monitoring.drift_report import report_drift
 from winterload.pipeline.training.champion_challenger import ChampionChallengerPipeline
 from winterload.pipeline.training.final_test_guard import MARKER_KEY as FINAL_TEST_MARKER_KEY
 from winterload.repository.champion import MONITORING_EXPERIMENT
 from winterload.repository.factory import champion_repository
+from winterload.repository.forecast import ForecastRepository
+from winterload.repository.load import LoadRepository
 from winterload.repository.training_frame import load_dataframe
 
 
@@ -37,10 +38,14 @@ class RetrainMonitorPipeline(MonitoringPipeline):
         start, end = window
 
         registry = champion_repository()
-        frame = load_dataframe(self.storage, start, end)
-        if len(frame) < MIN_MONITORING_HOURS:
-            self.logger.warning("RETRAIN MONITOR: skipped, %s..%s has %s row(s), below the minimum of %s.",
-                                start, end, len(frame), MIN_MONITORING_HOURS)
+        forecasts = ForecastRepository(self.storage)
+        scored = pd.concat({"actual": LoadRepository(self.storage).hourly(start, end),
+                            "champion": forecasts.scheduled(start, end, CHAMPION),
+                            "baseline": forecasts.scheduled(start, end, BASELINE)}, axis=1).dropna()
+        if len(scored) < MIN_MONITORING_HOURS:
+            self.logger.warning("RETRAIN MONITOR: skipped, %s..%s has %s hour(s) of scheduled forecasts with "
+                                "realised load, below the minimum of %s.",
+                                start, end, len(scored), MIN_MONITORING_HOURS)
             return
 
         champion = registry.load_champion()
@@ -49,11 +54,13 @@ class RetrainMonitorPipeline(MonitoringPipeline):
             return
 
         released = self.storage.read_marker(FINAL_TEST_MARKER_KEY) is not None
-        drift = report_drift(self.storage, registry, champion, frame, window, released, reference_date, self.logger)
+        frame = load_dataframe(self.storage, start, end)
+        drift = (report_drift(self.storage, registry, champion, frame, window, released, reference_date, self.logger)
+                 if len(frame) >= MIN_MONITORING_HOURS else None)
 
         decision = RetrainTriggerPolicy().decide(
-            champion.evaluation_model.evaluate(frame),
-            mape(frame[TARGET_COLUMN].to_numpy(), seasonal_naive_forecast(frame)),
+            mape(scored["actual"].to_numpy(), scored["champion"].to_numpy()),
+            mape(scored["actual"].to_numpy(), scored["baseline"].to_numpy()),
         )
         drift_retrain = drift is not None and drift.retrain
         retrain = decision.retrain or drift_retrain
@@ -61,7 +68,7 @@ class RetrainMonitorPipeline(MonitoringPipeline):
         self.logger.info(
             "RETRAIN MONITOR: %s..%s (%s row(s)), model MAPE=%.4f%%, baseline MAPE=%.4f%%, threshold=%.4f%%, "
             "drift share=%s: %s",
-            start, end, len(frame), decision.model_mape * 100, decision.baseline_mape * 100,
+            start, end, len(scored), decision.model_mape * 100, decision.baseline_mape * 100,
             decision.threshold_mape * 100, f"{drift.drift_share:.2f}" if drift else "n/a",
             f"retrain ({', '.join(reasons)})" if retrain else "keep",
         )
@@ -71,7 +78,7 @@ class RetrainMonitorPipeline(MonitoringPipeline):
             metrics |= {"drift_share": drift.drift_share, "drift_threshold_share": drift.threshold_share}
         with registry.run(self.name, MONITORING_EXPERIMENT):
             registry.log(
-                params={"reference_date": reference_date, "rows": len(frame), "retrain": retrain,
+                params={"reference_date": reference_date, "rows": len(scored), "retrain": retrain,
                         "mape_trigger": decision.retrain, "drift_trigger": drift_retrain,
                         "retrain_reason": "+".join(reasons) or "none"},
                 metrics=metrics,
