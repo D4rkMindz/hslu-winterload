@@ -70,6 +70,17 @@ export TF_VAR_project_id := $(call env,GCP_PROJECT_ID)
 export TF_VAR_region := $(call env,BIGQUERY_LOCATION)
 export TF_VAR_dataset_id := $(call env,BIGQUERY_DATASET)
 TF_STATE_BUCKET := $(TF_VAR_project_id)-tfstate
+DEV_DATASET := $(TF_VAR_dataset_id)_dev
+DEV_TABLES := energy_load weather_forecast weather_forecast_backup_00utc weather_measurements _markers
+
+.PHONY: dev-data
+# Copies the production feature tables into the dev dataset (Terraform creates it), then creates the forecast
+# tables and the view there. Rerun to refresh the copy. Forecasts and models of local runs stay out of production.
+dev-data:
+	@for table in $(DEV_TABLES); do \
+		bq cp -f $(TF_VAR_project_id):$(TF_VAR_dataset_id).$$table $(TF_VAR_project_id):$(DEV_DATASET).$$table || exit 1; \
+	done
+	@BIGQUERY_DATASET=$(DEV_DATASET) uv run python -c "from winterload.storage import setup; setup()"
 TERRAFORM := terraform -chdir=infra
 
 .PHONY: tf-init tf-plan tf-apply

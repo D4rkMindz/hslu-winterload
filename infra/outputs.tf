@@ -7,3 +7,8 @@ output "dataset" {
   description = "Fully qualified dataset id, i.e. GCP_PROJECT_ID.BIGQUERY_DATASET."
   value       = "${google_bigquery_dataset.offline_store.project}.${google_bigquery_dataset.offline_store.dataset_id}"
 }
+
+output "dev_dataset" {
+  description = "Fully qualified dev dataset id for local runs, filled by `make dev-data`."
+  value       = "${google_bigquery_dataset.dev.project}.${google_bigquery_dataset.dev.dataset_id}"
+}

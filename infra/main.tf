@@ -28,6 +28,16 @@ resource "google_bigquery_dataset" "offline_store" {
   depends_on = [google_project_service.services]
 }
 
+# A copy of the offline store for local Kestra runs, so unmerged code never writes to production.
+# `make dev-data` fills it. Disposable: destroying it drops the copied tables.
+resource "google_bigquery_dataset" "dev" {
+  dataset_id                 = "${var.dataset_id}_dev"
+  location                   = var.region
+  delete_contents_on_destroy = true
+
+  depends_on = [google_project_service.services]
+}
+
 # The identity the pipelines run as where there is no gcloud login, e.g. the Docker container.
 # Its key is created with gcloud, not here: Terraform would keep the private key in its state.
 resource "google_service_account" "pipeline" {

@@ -214,6 +214,19 @@ get no `.env` file. `docker/kestra/docker-compose.yaml` passes the settings to K
 `.env.docker`, and the flows read them as `{{ envs.<name> }}`: `ENV_S3_ENDPOINT` becomes `{{ envs.s3_endpoint }}`. A new
 setting needs an `ENV_*` line there and an `env:` entry in each flow task.
 
+### Local runs stay out of production
+
+Run `make tf-apply` once, then `make dev-data`. Put these two lines into `.env.docker` (it overrides `.env` for docker
+compose) and run `make up`:
+
+```
+BIGQUERY_DATASET=winterload_dev
+MLFLOW_TRACKING_URI=http://mlflow:5000
+```
+
+Local Kestra then writes features, forecasts and models into the copy and the local MLflow, never into `winterload` or
+ml.darker.dev.
+
 ### Alert mail
 
 `daily_forecast` mails `ALERT_MAIL_TO` when a task fails or inference skipped hours, so you know to run it again
