@@ -3,7 +3,7 @@ baseline on the last 7 days, measures the drift of the same days (drift_report),
 champion/challenger when either trigger fires.
 
 `champion_eval` stands in for the serving model. The serving model refits on all data, so it has seen
-some of these hours, and winterload.pipeline.inference does not log real forecasts yet.
+some of these hours, and this monitor doesn't read the stored forecasts of winterload.pipeline.inference yet.
 `champion_eval` is older, which makes the trigger fire earlier, never later.
 """
 

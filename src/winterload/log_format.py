@@ -26,3 +26,8 @@ class KestraFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {"logs": [{"level": kestra_level(record.levelno), "message": super().format(record)}]}
         return f"::{json.dumps(payload, separators=(',', ':'))}::"
+
+
+def kestra_outputs(values: dict[str, str]) -> str:
+    """A stdout line Kestra reads as task outputs: later tasks of the flow see `outputs.<task id>.vars.<name>`."""
+    return f"::{json.dumps({'outputs': values}, separators=(',', ':'))}::"

@@ -62,6 +62,15 @@ services:
       ENV_MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       ENV_MLFLOW_TRACKING_USERNAME: ${MLFLOW_TRACKING_USERNAME:-}
       ENV_MLFLOW_TRACKING_PASSWORD: ${MLFLOW_TRACKING_PASSWORD:-}
+      # Alert mail of daily_forecast, optional: with SMTP_HOST empty the flow sends none
+      ENV_SMTP_HOST: ${SMTP_HOST:-}
+      ENV_SMTP_PORT: ${SMTP_PORT:-465}
+      ENV_SMTP_USERNAME: ${SMTP_USERNAME:-}
+      ENV_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ENV_ALERT_MAIL_FROM: ${ALERT_MAIL_FROM:-}
+      ENV_ALERT_MAIL_TO: ${ALERT_MAIL_TO:-}
+      # One host pin for the inference container, e.g. ml.darker.dev:83.77.31.129 (.env.example)
+      ENV_DOCKER_EXTRA_HOST: ${DOCKER_EXTRA_HOST:-}
       # OFFLINE_STORAGE=bigquery only. The task containers mount the secrets directory from the host,
       # so this has to be an absolute host path: run `make up` (or docker compose) from the project root,
       # or set SECRETS_DIR in .env if your shell doesn't set PWD.

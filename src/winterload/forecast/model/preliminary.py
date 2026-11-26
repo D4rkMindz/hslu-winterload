@@ -86,6 +86,12 @@ class PreliminaryModel:
     def estimator(self) -> lgb.LGBMRegressor:
         return self._model
 
+    @property
+    def feature_columns(self) -> list[str]:
+        if self._feature_columns is None:
+            raise ModelNotFitted("Call fit() before asking for the feature columns.")
+        return self._feature_columns
+
     def fit(self, train: pd.DataFrame) -> PreliminaryModel:
         self._feature_columns = [c for c in train.columns if c not in (TARGET_COLUMN, "event_timestamp")]
         features, target = train[self._feature_columns], train[TARGET_COLUMN]

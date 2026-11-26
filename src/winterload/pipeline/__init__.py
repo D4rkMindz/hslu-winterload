@@ -1,8 +1,7 @@
 """Runs every winterload pipeline stage once, in order: features, training, inference. The
 `winterload` console script (pyproject.toml) is this module's `main()`; `-s`/`-e`/`-f` configure
 the features stage's date range/force the same way `python -m winterload.pipeline.features` does
-on its own -- training and inference don't take a date range (yet), so they're always run with
-their own defaults.
+on its own -- training takes no date range, and inference takes `--target-day` and `--model` instead.
 """
 
 import datetime as dt
@@ -13,6 +12,7 @@ from collections.abc import Callable
 from winterload import DEFAULT_END_DATE, DEFAULT_START_DATE
 from winterload.errors import StageError
 from winterload.forecast.evaluation.tuning import DEFAULT_TRIALS
+from winterload.forecast.inference import CHAMPION, MODEL_ROLES
 from winterload.pipeline.features import FeaturePipeline
 from winterload.pipeline.features.energy_load_backfill import EnergyLoadBackfill
 from winterload.pipeline.features.weather_forecast_backfill import WeatherForecastBackfill
@@ -64,11 +64,16 @@ def main() -> None:
     parser.add_argument("--tuning-run-id", default=None,
                         help="training.final_test: the tuning run to check (default: TUNING_RUN_ID in "
                              "winterload/forecast/model/tuned.py)")
+    parser.add_argument("--target-day", type=dt.date.fromisoformat, default=None,
+                        help="inference: the Zurich local day to forecast (default: tomorrow)")
+    parser.add_argument("--model", action="append", choices=MODEL_ROLES, default=None,
+                        help=f"inference: one of {', '.join(MODEL_ROLES)}, repeat it for several "
+                             f"(default: {CHAMPION})")
     args = parser.parse_args()
 
     # Each stage is bound to exactly the args it needs, right here where we know them -- the
-    # features-family stages take the date range + force, training/inference take neither (they
-    # don't have a date range yet). That keeps every `run()` signature strict and type-checked;
+    # features-family stages take the date range + force, inference the target day and models, training
+    # none of them. That keeps every `run()` signature strict and type-checked;
     # there is no single generic call that would force them onto one shared shape.
     stages: dict[str, Callable[[], None]] = {
         "features": lambda: FeaturePipeline().run(args.start, args.end, force=args.force),
@@ -79,7 +84,7 @@ def main() -> None:
         "training.tuning": lambda: TuningPipeline().run(trials=args.trials),
         # Kestra passes an empty string when its input is left blank.
         "training.final_test": lambda: FinalTestPipeline().run(tuning_run_id=args.tuning_run_id or None),
-        "inference": lambda: InferencePipeline.run_all(),
+        "inference": lambda: InferencePipeline().run(target_day=args.target_day, models=args.model or [CHAMPION]),
         "monitoring": lambda: MonitoringPipeline.run_all(),
     }
     selected = args.pipeline or DEFAULT_STAGE_ORDER

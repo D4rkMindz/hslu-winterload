@@ -197,7 +197,7 @@ the UI land in the same folder:
 
 | Flow | Schedule (Zurich time) | Runs |
 |---|---|---|
-| `daily_forecast` | Daily 07:00 | The three feature backfills over the last 7 days, then `-p inference` |
+| `daily_forecast` | Daily 07:00 | The three feature backfills over the last 7 days, then `-p inference` for tomorrow with champion, challenger and baseline |
 | `daily_monitoring` | Daily 08:00 | `-p monitoring`: retrain triggers (MAPE and drift), publication delays |
 | `weekly_training` | Mondays 06:00 | `-p training`: champion/challenger |
 | `tuning` | 1st of the month 03:00, and manual | `-p training.tuning --trials <trials>` |
@@ -213,6 +213,16 @@ Each task starts a container from the local `winterload` image, so run `make bui
 get no `.env` file. `docker/kestra/docker-compose.yaml` passes the settings to Kestra as `ENV_*` variables, from `.env` and
 `.env.docker`, and the flows read them as `{{ envs.<name> }}`: `ENV_S3_ENDPOINT` becomes `{{ envs.s3_endpoint }}`. A new
 setting needs an `ENV_*` line there and an `env:` entry in each flow task.
+
+### Alert mail
+
+`daily_forecast` mails `ALERT_MAIL_TO` when a task fails or inference skipped hours, so you know to run it again
+once the data is published. The mail is optional: with `SMTP_HOST` empty in `.env` the flow sends none and runs the
+same. Set `SMTP_HOST`, `SMTP_PORT` (SMTPS, default 465), `SMTP_USERNAME`, `SMTP_PASSWORD`, `ALERT_MAIL_FROM` and
+`ALERT_MAIL_TO` in `.env`, then `make up`.
+
+`make secrets` fills the four `SMTP_*` values from the 1Password item `srv67/smtp`. 1Password is only where the
+maintainer keeps them, nothing else depends on it: without 1Password, write the values into `.env` yourself.
 
 # Pipeline
 
@@ -249,6 +259,46 @@ into `src/winterload/forecast/model/tuned.py` and commit it. Until then champion
 `TUNING_RUN_ID` stays next to the settings, champion/challenger logs it as `settings_source`, and `final_test` refuses to
 open the year unless that run exists, passed the gate and holds exactly the committed settings (`--tuning-run-id` checks a
 different run).
+
+## Inference
+
+```shell
+uv run winterload -p inference --target-day 2026-11-27 --model champion --model challenger --model baseline
+```
+
+`--target-day` defaults to tomorrow in Zurich, `--model` to `champion`. The stage forecasts every hour of that local day
+(23, 24 or 25) with each model: `champion` and `challenger` are aliases in the model registry, `baseline` is the load one
+week earlier. An hour whose inputs are missing gets skipped and logged as a warning; at 07:00 the 48h load lag of the
+evening hours is often not published yet. A model that fails to load doesn't stop the others. Either one ends the stage
+with exit code 1, and the forecasts it could make are stored. Run it again later to fill the gaps.
+
+Runs only append, to two tables in the offline storage (BigQuery: dataset `winterload`):
+
+| Table | Columns |
+|---|---|
+| `winterload_forecasts` | `id`, `prediction_time` (the forecast hour, UTC), `model_id` (`winterload-load-forecast/<version>` or `seasonal_naive_168h`), `model_role`, `result` (MW), `run_id` |
+| `winterload_forecast_runs` | `id`, `started_at`, `completed_at`, `target_day` |
+
+The view `winterload_forecasts_latest` keeps the newest run's result per `model_role`, `model_id` and hour. The upcoming forecasts:
+
+```sql
+SELECT * FROM `winterload.winterload.winterload_forecasts_latest`
+WHERE prediction_time >= CURRENT_TIMESTAMP()
+ORDER BY model_id, prediction_time
+```
+
+When a value was first predicted:
+
+```sql
+SELECT f.model_id, f.prediction_time, f.result, MIN(r.started_at) AS first_predicted_at
+FROM `winterload.winterload.winterload_forecasts` f
+JOIN `winterload.winterload.winterload_forecast_runs` r ON f.run_id = r.id
+GROUP BY f.model_id, f.prediction_time, f.result
+```
+
+The tables and the view come from `storage.setup()` (`make setup`, or once after an update:
+`uv run python -c "from winterload.storage import setup; setup()"`). On S3 each run writes one Parquet
+file per table, and there is no view.
 
 ## Tests and CI
 

@@ -105,3 +105,18 @@ def assemble_training_frame(load: pd.Series, weather: pd.DataFrame, start: dt.da
     frame = frame.merge(_calendar_features(frame["event_timestamp"]), on="event_timestamp", how="left")
 
     return frame.dropna().reset_index(drop=True)
+
+
+def assemble_inference_frame(load: pd.Series, weather: pd.DataFrame, target_day: dt.date) -> pd.DataFrame:
+    """One row per UTC hour of the Zurich local `target_day` (23, 24 or 25 rows): the load lags, weather forecast
+    features and calendar fields of `assemble_training_frame`, without the target. An hour keeps its row when an
+    input is missing, with NaN in that column, so the caller can name the hours it skips.
+
+    `load` must be reindexed to one row per UTC hour (see `_load_lags`), from at least 168 hours before the day's
+    first hour up to its last hour. `weather` is aggregated to one row per hour (see `aggregate_weather`).
+    """
+    start, end = local_day_bounds(target_day)
+    hours = pd.date_range(start.tz_convert("UTC"), end.tz_convert("UTC"), freq="h", inclusive="left")
+    frame = _load_lags(load).reindex(hours).rename_axis("event_timestamp").reset_index()
+    frame = frame.merge(weather, on="event_timestamp", how="left")
+    return frame.merge(_calendar_features(frame["event_timestamp"]), on="event_timestamp", how="left")

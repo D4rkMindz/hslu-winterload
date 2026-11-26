@@ -36,6 +36,7 @@ STUDIES_EXPERIMENT = "winterload/studies"
 REGISTERED_MODEL_NAME = "winterload-load-forecast"
 EVALUATION_ALIAS = "champion_eval"
 SERVING_ALIAS = "champion"
+CHALLENGER_ALIAS = "challenger"
 # MLflow's error codes for an unknown alias and an unknown registered model.
 NOT_REGISTERED_YET = ("INVALID_PARAMETER_VALUE", "RESOURCE_DOES_NOT_EXIST")
 SKOPS_TRUSTED_TYPES = ["collections.OrderedDict", "lightgbm.basic.Booster", "lightgbm.sklearn.LGBMRegressor"]
@@ -52,6 +53,10 @@ class TrackingUnavailable(StageError):
 
 class RunNotFound(StageError):
     """The MLflow server is up, but holds no run with that ID."""
+
+
+class ModelNotRegistered(StageError):
+    """The registry holds no model under that alias yet."""
 
 
 class ChampionRepository:
@@ -73,8 +78,8 @@ class ChampionRepository:
             ) from error
 
     def run(self, name: str, experiment: str, nested: bool = False) -> mlflow.ActiveRun:
-        """Use as a context manager around `log`, `promote` and `replace_serving_model`. A nested run stays in
-        its parent's experiment."""
+        """Use as a context manager around `log`, `promote`, `replace_serving_model` and
+        `register_challenger`. A nested run stays in its parent's experiment."""
         if not nested:
             mlflow.set_experiment(experiment)
         tags = {GIT_SHA_TAG: self._git_sha}
@@ -163,17 +168,45 @@ class ChampionRepository:
         return self._load(SERVING_ALIAS)
 
     def promote(self, evaluation_model: PreliminaryModel, serving_model: PreliminaryModel,
-                holdout_mape: float, promoted_at: dt.datetime, training_end: dt.date) -> None:
+                holdout_mape: float, promoted_at: dt.datetime, training_end: dt.date) -> str:
         version = self._register(evaluation_model, "evaluation_model")
         self._client.set_model_version_tag(REGISTERED_MODEL_NAME, version, "holdout_mape", str(holdout_mape))
         self._client.set_model_version_tag(REGISTERED_MODEL_NAME, version, "promoted_at", promoted_at.isoformat())
         self._client.set_model_version_tag(REGISTERED_MODEL_NAME, version, TRAINING_END_TAG, training_end.isoformat())
         self._client.set_registered_model_alias(REGISTERED_MODEL_NAME, EVALUATION_ALIAS, version)
-        self.replace_serving_model(serving_model)
+        return self.replace_serving_model(serving_model)
 
-    def replace_serving_model(self, serving_model: PreliminaryModel) -> None:
+    def replace_serving_model(self, serving_model: PreliminaryModel) -> str:
         version = self._register(serving_model, "serving_model")
         self._client.set_registered_model_alias(REGISTERED_MODEL_NAME, SERVING_ALIAS, version)
+        return version
+
+    def register_challenger(self, challenger: PreliminaryModel) -> str:
+        """Registers the losing challenger, refit on all data, under the alias `challenger` for inference."""
+        version = self._register(challenger, "challenger_model")
+        self.point_challenger_at(version)
+        return version
+
+    def point_challenger_at(self, version: str) -> None:
+        """After a promotion the challenger is the champion, so both aliases name the same version."""
+        self._client.set_registered_model_alias(REGISTERED_MODEL_NAME, CHALLENGER_ALIAS, version)
+
+    def load_model(self, alias: str) -> tuple[PreliminaryModel, str]:
+        """The model behind `alias` and its model_id `<registered name>/<version>`. Loads by version, so a
+        promotion between the two calls can't hand back a different model than the id names."""
+        try:
+            version = self._client.get_model_version_by_alias(REGISTERED_MODEL_NAME, alias)
+            estimator = mlflow.lightgbm.load_model(f"models:/{REGISTERED_MODEL_NAME}/{version.version}")
+        except MlflowException as error:
+            if error.error_code in NOT_REGISTERED_YET:
+                raise ModelNotRegistered(
+                    f"{REGISTERED_MODEL_NAME} has no alias {alias!r} on {self._tracking_uri} yet. "
+                    "champion_challenger sets `champion` and `challenger`."
+                ) from error
+            raise TrackingUnavailable(f"MLflow at {self._tracking_uri} could not load {alias!r}: {error}") from error
+        except OSError as error:
+            raise TrackingUnavailable(f"MLflow at {self._tracking_uri} could not load {alias!r}: {error}") from error
+        return PreliminaryModel.from_estimator(estimator), f"{REGISTERED_MODEL_NAME}/{version.version}"
 
     def _register(self, model: PreliminaryModel, name: str) -> str:
         # MLflow prints its registration notices ("Created version '3' ...") straight to sys.stderr, not through

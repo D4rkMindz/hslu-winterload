@@ -147,3 +147,31 @@ def test_the_final_test_keeps_the_year_closed_when_the_run_is_missing(registry, 
     with pytest.raises(RunNotFound):
         final_test.FinalTestPipeline(storage=storage).run()
     assert storage.markers == {}
+
+
+def test_an_alias_nobody_set_is_a_stage_error(registry):
+    from winterload.repository.champion import ModelNotRegistered
+
+    with pytest.raises(ModelNotRegistered, match="challenger"):
+        registry.load_model("challenger")
+
+
+def test_the_challenger_alias_loads_with_its_version(registry):
+    from winterload.forecast.model.preliminary import PreliminaryModel
+
+    model = PreliminaryModel().fit(_frame("2026-01-01", 200, seed=1))
+    with registry.run("champion_challenger", TRAINING_EXPERIMENT):
+        version = registry.register_challenger(model)
+    loaded, model_id = registry.load_model("challenger")
+    assert model_id == f"winterload-load-forecast/{version}"
+    assert loaded.feature_columns == model.feature_columns
+
+
+def test_after_a_promotion_the_challenger_alias_names_the_champion(registry):
+    from winterload.forecast.model.preliminary import PreliminaryModel
+
+    model = PreliminaryModel().fit(_frame("2026-01-01", 200, seed=1))
+    with registry.run("champion_challenger", TRAINING_EXPERIMENT):
+        serving_version = registry.replace_serving_model(model)
+        registry.point_challenger_at(serving_version)
+    assert registry.load_model("challenger")[1] == registry.load_model("champion")[1]

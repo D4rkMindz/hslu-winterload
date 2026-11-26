@@ -5,6 +5,7 @@ read by Feast's `file` offline store (feature_store.yaml).
 import datetime as dt
 import json
 import logging
+import uuid
 from typing import Any
 from urllib.parse import urlparse
 
@@ -57,6 +58,14 @@ class S3Storage(Storage):
     def write_day(self, table: str, df: pd.DataFrame, target_day: dt.date) -> str:
         path = self.day_path(table, target_day)
         filesystem = get_filesystem(path)
+        pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path, filesystem=filesystem)
+        return path
+
+    def append(self, table: str, df: pd.DataFrame) -> str:
+        # One new file per call: an S3 object can't grow, and a new file never replaces an earlier run's rows.
+        path = f"{settings.feast_store_path}/{table}/{uuid.uuid4()}.parquet"
+        filesystem = get_filesystem(path)
+        filesystem.makedirs(path.rsplit("/", 1)[0], exist_ok=True)
         pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path, filesystem=filesystem)
         return path
 

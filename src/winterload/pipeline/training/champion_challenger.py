@@ -1,6 +1,7 @@
 """Weekly champion/challenger retraining, reviewer point B2/A3. The challenger trains on data up to
 8 weeks ago. Both models then score the most recent 8 weeks, which neither has seen, and
 PromotionPolicy picks the winner. The winner gets refit on all data for serving.
+A losing challenger gets refit on the same data and registered as `challenger`, so inference can compare the two.
 
 The challenger fits with the committed TUNED_SETTINGS (winterload.forecast.model.tuned), or with LightGBM's
 defaults while none are committed. The weekly flow and the monitoring trigger can both start this stage on
@@ -98,10 +99,12 @@ class ChampionChallengerPipeline(TrainingPipeline):
                           "serving_train": serving_train},
             )
             if decision.promote:
-                registry.promote(challenger, serving_model, challenger_mape, dt.datetime.now(dt.UTC),
-                                 training_end=holdout_start)
+                serving_version = registry.promote(challenger, serving_model, challenger_mape,
+                                                   dt.datetime.now(dt.UTC), training_end=holdout_start)
+                registry.point_challenger_at(serving_version)
             else:
                 registry.replace_serving_model(serving_model)
+                registry.register_challenger(challenger.unfitted_copy().fit(serving_train))
 
     def _training_frame(self, end: dt.date) -> pd.DataFrame:
         released = self.storage.read_marker(FINAL_TEST_MARKER_KEY) is not None

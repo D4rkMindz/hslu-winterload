@@ -18,6 +18,27 @@ stop:
 
 
 ########################################################################################################################
+# Secrets
+########################################################################################################################
+# Fills the SMTP settings of the alert mail into .env from 1Password, where the maintainer keeps them. Nothing else
+# needs 1Password: write SMTP_* into .env by hand instead, or leave SMTP_HOST empty and Kestra sends no mail.
+# Field IDs, not labels: the item's labels contain spaces and appear twice (IMAP and SMTP).
+OP_SMTP := op://srv67/smtp
+SECRETS := SMTP_HOST=$(OP_SMTP)/smtp_server SMTP_PORT=$(OP_SMTP)/smtp_port \
+	SMTP_USERNAME=$(OP_SMTP)/smtp_username SMTP_PASSWORD=$(OP_SMTP)/pop_password
+
+.PHONY: secrets
+secrets:
+	@touch .env
+	@umask 077; for pair in $(SECRETS); do \
+		key=$${pair%%=*}; value=$$(op read "$${pair#*=}") || exit 1; \
+		grep -v "^$$key=" .env > .env.tmp || true; \
+		printf "%s='%s'\n" "$$key" "$$value" >> .env.tmp; \
+		mv .env.tmp .env; \
+	done
+	@echo "SMTP settings written to .env. Run make up so Kestra picks them up."
+
+########################################################################################################################
 # Tests
 ########################################################################################################################
 .PHONY: test lint

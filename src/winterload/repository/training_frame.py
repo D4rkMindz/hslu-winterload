@@ -18,7 +18,9 @@ from winterload.forecast.evaluation.splits import (
 from winterload.forecast.features.dataset import (
     DEFAULT_CITY_WEIGHTS,
     LAG_HOURS,
+    WEATHER_COLUMNS,
     aggregate_weather,
+    assemble_inference_frame,
     assemble_training_frame,
 )
 from winterload.repository.load import LoadRepository
@@ -49,3 +51,20 @@ def load_train_and_validation(storage: Storage) -> tuple[pd.DataFrame, pd.DataFr
 
 def load_test(storage: Storage) -> pd.DataFrame:
     return load_dataframe(storage, TEST_START, TEST_END)
+
+
+def load_inference_frame(storage: Storage, target_day: dt.date,
+                         city_weights: dict[str, float] = DEFAULT_CITY_WEIGHTS) -> pd.DataFrame:
+    """The model inputs of every UTC hour of the Zurich local `target_day`, NaN where an input is missing, see
+    winterload.forecast.features.dataset.assemble_inference_frame."""
+    # The local day starts on the UTC day before, and its 168h lag reaches seven more days back.
+    load = LoadRepository(storage).hourly(target_day - dt.timedelta(days=8), target_day + dt.timedelta(days=1))
+    forecast = WeatherRepository(storage).forecast(target_day - dt.timedelta(days=1),
+                                                   target_day + dt.timedelta(days=1))
+    if forecast.empty:
+        # No weather yet for the day: keep the columns, so every hour reports them as missing.
+        weather = pd.DataFrame({"event_timestamp": pd.Series(dtype="datetime64[ns, UTC]")}
+                               | {column: pd.Series(dtype="float64") for column in WEATHER_COLUMNS})
+    else:
+        weather = aggregate_weather(forecast, city_weights)
+    return assemble_inference_frame(load, weather, target_day)

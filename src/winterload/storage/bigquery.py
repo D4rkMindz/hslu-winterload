@@ -51,6 +51,27 @@ SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
     ],
 }
 
+# The append-only tables of winterload.repository.forecast. No backfill_day: a run never replaces a day, it adds
+# rows. Each table is partitioned by the day of the column in APPEND_PARTITIONS.
+APPEND_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
+    "winterload_forecasts": [
+        bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("prediction_time", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("model_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("model_role", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("result", "FLOAT64"),
+        bigquery.SchemaField("run_id", "STRING", mode="REQUIRED"),
+    ],
+    "winterload_forecast_runs": [
+        bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("started_at", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("completed_at", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("target_day", "DATE", mode="REQUIRED"),
+    ],
+}
+APPEND_PARTITIONS = {"winterload_forecasts": "prediction_time", "winterload_forecast_runs": "started_at"}
+LATEST_FORECASTS_VIEW = "winterload_forecasts_latest"
+
 
 class BigQueryStorage(Storage):
     @cached_property
@@ -91,6 +112,29 @@ class BigQueryStorage(Storage):
         df = df.assign(**{PARTITION_COLUMN: target_day})
         self.client.load_table_from_dataframe(df, destination, job_config=job_config).result()
         return destination
+
+    def append(self, table: str, df: pd.DataFrame) -> str:
+        job_config = bigquery.LoadJobConfig(
+            schema=APPEND_SCHEMAS[table],
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
+        )
+        self.client.load_table_from_dataframe(df, self.table_id(table), job_config=job_config).result()
+        return self.table_id(table)
+
+    def _latest_forecasts_sql(self) -> str:
+        """The newest run's result per role, model version and hour. After a promotion champion and challenger
+        share a version, so the role stays in the key. Hours a run skipped have no row, so an older run's result
+        stays visible for them."""
+        return f"""
+            CREATE OR REPLACE VIEW `{self.table_id(LATEST_FORECASTS_VIEW)}` AS
+            SELECT f.id, f.model_id, f.model_role, f.prediction_time, f.result, f.run_id, r.started_at
+            FROM `{self.table_id("winterload_forecasts")}` f
+            JOIN `{self.table_id("winterload_forecast_runs")}` r ON f.run_id = r.id
+            WHERE f.result IS NOT NULL
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY f.model_role, f.model_id, f.prediction_time ORDER BY r.started_at DESC) = 1
+        """
 
     def source(self, table: str, model: str | None = None) -> BigQuerySource:
         if model is None:
@@ -146,4 +190,10 @@ class BigQueryStorage(Storage):
             bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
         ])
         self.client.create_table(markers_table, exists_ok=True)
-        logger.info("Dataset %r ready with tables %s", dataset.dataset_id, ", ".join([*SCHEMAS, MARKERS_TABLE]))
+        for table, schema in APPEND_SCHEMAS.items():
+            bq_table = bigquery.Table(self.table_id(table), schema=schema)
+            bq_table.time_partitioning = bigquery.TimePartitioning(field=APPEND_PARTITIONS[table])
+            self.client.create_table(bq_table, exists_ok=True)
+        self.client.query(self._latest_forecasts_sql()).result()
+        logger.info("Dataset %r ready with tables %s and view %s", dataset.dataset_id,
+                    ", ".join([*SCHEMAS, MARKERS_TABLE, *APPEND_SCHEMAS]), LATEST_FORECASTS_VIEW)

@@ -24,6 +24,11 @@ class Storage(ABC):
         Returns where it was written to, for logging."""
 
     @abstractmethod
+    def append(self, table: str, df: pd.DataFrame) -> str:
+        """Adds `df`'s rows to `table` and leaves its earlier rows alone. Returns where it wrote to, for
+        logging. Used by the append-only forecast tables (winterload.repository.forecast)."""
+
+    @abstractmethod
     def source(self, table: str, model: str | None = None) -> DataSource:
         """The Feast data source reading `table`, for the feature views in definitions.py. Pass
         `model` when the table holds several models, so one hour and city stay one row."""

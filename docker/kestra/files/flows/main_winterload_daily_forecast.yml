@@ -1,7 +1,9 @@
 id: daily_forecast
 namespace: winterload
 description: |
-  Daily at 07:00 Zurich: brings the features up to date for the 08:00 forecast, then runs inference.
+  Daily at 07:00 Zurich: brings the features up to date for the 08:00 forecast, then forecasts tomorrow with the
+  champion, the challenger and the baseline. Inference runs even when a backfill fails, and forecasts the hours
+  whose inputs exist. A failed task or skipped hours mail ALERT_MAIL_TO, if SMTP is configured (README, Alert mail).
 
   The backfills skip days they already hold. The energy load and the weather measurements get re-fetched
   with -f for the last `lookback_days`, because ENTSO-E revises the load and ERA5 lags by days. The weather
@@ -27,6 +29,8 @@ variables:
 tasks:
   - id: features
     type: io.kestra.plugin.scripts.shell.Commands
+    # Inference still forecasts the hours whose inputs are already stored
+    allowFailure: true
     containerImage: "{{ envs.winterload_image ?? 'winterload' }}"
     # The envs come from the ENV_* variables in docker/kestra/docker-compose.yaml
     taskRunner:
@@ -74,6 +78,10 @@ tasks:
       type: io.kestra.plugin.scripts.runner.docker.Docker
       pullPolicy: "{{ envs.pull_policy ?? 'NEVER' }}"
       networkMode: "{{ envs.network }}"
+      # shortcut: DOCKER_EXTRA_HOST pins ml.darker.dev to its public IP, because srv67 refuses Docker Desktop's LAN
+      # connections; drop it once srv67 accepts them. Unset, it maps localhost to 127.0.0.1, which changes nothing.
+      extraHosts:
+        - "{{ envs.docker_extra_host | default('localhost:127.0.0.1') }}"
       volumes:
         - "{{ envs.secrets_dir }}:/app/secrets:ro"
     env:
@@ -102,7 +110,25 @@ tasks:
       MLFLOW_TRACKING_PASSWORD: "{{ envs.mlflow_tracking_password ?? '' }}"
     commands:
       - cd /app
-      - winterload -p inference
+      - winterload -p inference --target-day {{ render(vars.tomorrow) }} --model champion --model challenger --model baseline
+
+afterExecution:
+  # Optional: without ENV_SMTP_HOST (SMTP_HOST in .env) no mail goes out, and the flow runs the same.
+  - id: alert_mail
+    type: io.kestra.plugin.email.MailSend
+    runIf: "{{ execution.state != 'SUCCESS' and (envs.smtp_host ?? '') != '' }}"
+    host: "{{ envs.smtp_host }}"
+    port: "{{ envs.smtp_port ?? 465 }}"
+    transportStrategy: SMTPS
+    username: "{{ envs.smtp_username }}"
+    password: "{{ envs.smtp_password }}"
+    from: "{{ envs.alert_mail_from }}"
+    to: "{{ envs.alert_mail_to }}"
+    subject: "winterload daily_forecast {{ execution.state }} for {{ render(vars.tomorrow) }}"
+    plainTextContent: |
+      Execution {{ execution.id }} of {{ flow.namespace }}.{{ flow.id }} ended {{ execution.state }}.
+      Inference: {{ outputs.inference.vars.problems ?? 'the WARN and ERROR lines of the inference task name the skipped hours and failed models' }}
+      Run the flow again once the missing data is published: a rerun adds the hours that are still missing.
 
 triggers:
   - id: daily
