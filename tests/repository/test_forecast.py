@@ -46,3 +46,44 @@ def test_a_run_without_forecasts_still_records_the_run():
     empty = ModelForecast("seasonal_naive_168h", "baseline", HOURS.iloc[:0], np.array([]))
     assert ForecastRepository(storage).save(RUN, [empty]) == 0
     assert [table for table, _ in storage.appends] == [RUN_TABLE]
+
+
+def _ts(day, hour=0):
+    return pd.Timestamp(dt.datetime(2026, 11, day, hour, tzinfo=dt.UTC))
+
+
+class ReadStorage:
+    """Serves prepared frames, filtered on the requested column like Storage.read_appended."""
+
+    def __init__(self, runs, forecasts):
+        self.frames = {RUN_TABLE: runs, FORECAST_TABLE: forecasts}
+
+    def read_appended(self, table, column, start, end):
+        frame = self.frames[table]
+        values = pd.to_datetime(frame[column], utc=True)
+        return frame[(values >= pd.Timestamp(start, tz="UTC")) & (values < pd.Timestamp(end, tz="UTC"))]
+
+
+def _forecasts(*rows):
+    return pd.DataFrame(rows, columns=["run_id", "prediction_time", "model_role", "result"])
+
+
+def test_scheduled_takes_the_newest_scheduled_run_per_hour_and_ignores_manual_runs():
+    runs = pd.DataFrame({"id": ["old", "new", "manual"], "run_type": ["scheduled", "scheduled", "manual"],
+                         "started_at": [_ts(25, 6), _ts(26, 6), _ts(26, 12)]})
+    forecasts = _forecasts(("old", _ts(27, 0), "champion", 1.0), ("new", _ts(27, 0), "champion", 2.0),
+                           ("manual", _ts(27, 0), "champion", 9.0), ("old", _ts(27, 1), "champion", 3.0),
+                           ("new", _ts(27, 0), "baseline", 7.0))
+    result = ForecastRepository(ReadStorage(runs, forecasts)).scheduled(dt.date(2026, 11, 27), dt.date(2026, 11, 28),
+                                                                         "champion")
+    assert list(result) == [2.0, 3.0]
+    assert list(result.index) == [_ts(27, 0), _ts(27, 1)]
+    assert result.index.name == "prediction_time"
+
+
+def test_scheduled_without_a_run_type_column_is_empty():
+    runs = pd.DataFrame({"id": ["r"], "started_at": [_ts(26, 6)]})
+    forecasts = _forecasts(("r", _ts(27, 0), "champion", 1.0))
+    result = ForecastRepository(ReadStorage(runs, forecasts)).scheduled(dt.date(2026, 11, 27), dt.date(2026, 11, 28),
+                                                                         "champion")
+    assert result.empty
