@@ -47,7 +47,7 @@ def missing_runs(rows: pd.DataFrame, first_day: dt.date, today: dt.date) -> pd.D
     (today's runs may not be due yet)."""
     seen = set(zip(rows["flow"], rows["scheduled_date"], strict=True)) if not rows.empty else set()
     missing = []
-    for day in pd.date_range(first_day, today, inclusive="left").date:
+    for day in pd.date_range(first_day, today - dt.timedelta(days=1)).date:
         expected = DAILY_FLOWS + (["weekly_training"] if day.weekday() == 0 else [])
         for flow in expected:
             if (flow, day.isoformat()) not in seen:
