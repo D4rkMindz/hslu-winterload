@@ -59,8 +59,4 @@ class OpenMeteoBackfillPipeline(BackfillPipeline):
                 failed += 1
             day += dt.timedelta(days=1)
 
-        self.logger.info(
-            "Done: wrote %s new day(s), skipped %s already-backfilled day(s), "
-            "rejected %s day(s) after repeated failures",
-            written, skipped, failed,
-        )
+        self.report(written, skipped, failed)

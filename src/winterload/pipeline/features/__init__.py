@@ -69,6 +69,13 @@ class BackfillPipeline(FeaturePipeline):
     def write_day(self, df: pd.DataFrame, target_day: dt.date) -> str:
         return self.storage.write_day(self.table, df, target_day)
 
+    def report(self, written: int, skipped: int, failed: int) -> None:
+        self.logger.info(
+            "Done: wrote %s new day(s), skipped %s already-backfilled day(s), "
+            "rejected %s day(s) after repeated failures",
+            written, skipped, failed,
+        )
+
 
 
 def main() -> None:
