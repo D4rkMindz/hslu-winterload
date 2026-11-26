@@ -4,6 +4,7 @@ the features stage's date range/force the same way `python -m winterload.pipelin
 on its own -- training takes no date range, and inference takes `--target-day` and `--model` instead.
 """
 
+import argparse
 import datetime as dt
 import logging
 import sys
@@ -28,6 +29,18 @@ from winterload.pipeline.training.tuning import TuningPipeline
 #: test, which only run on request (`-p training.tuning`, `-p training.final_test`).
 DEFAULT_STAGE_ORDER = ["features", "training", "inference"]
 
+STAGE_NAMES = [
+    "features",
+    "features.energy.backfill",
+    "features.forecast.backfill",
+    "features.weather.backfill",
+    "training",
+    "training.tuning",
+    "training.final_test",
+    "inference",
+    "monitoring",
+]
+
 logger = logging.getLogger("winterload.pipeline")
 
 
@@ -42,9 +55,7 @@ def run_all(steps: list[Callable[[], None]]) -> None:
         sys.exit(1)
 
 
-def main() -> None:
-    import argparse
-
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "-s", "--start", type=dt.date.fromisoformat, default=DEFAULT_START_DATE,
@@ -55,7 +66,7 @@ def main() -> None:
         help=f"default: {DEFAULT_END_DATE.isoformat()}",
     )
     parser.add_argument(
-        "-p", "--pipeline", action="append", default=None,
+        "-p", "--pipeline", action="append", choices=STAGE_NAMES, default=None,
         help="default: run all pipelines (feature -> training -> inference)",
     )
     parser.add_argument("-f", "--force", action="store_true", help="re-fetch days the features stage already has")
@@ -72,7 +83,11 @@ def main() -> None:
     parser.add_argument("--scheduled-at", default="",
                         help="inference: the Kestra schedule date; set means a scheduled run")
     parser.add_argument("--kestra-execution-id", default="")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     # Each stage is bound to exactly the args it needs, right here where we know them -- the
     # features-family stages take the date range + force, inference the target day and models, training
@@ -92,5 +107,7 @@ def main() -> None:
             kestra_execution_id=args.kestra_execution_id),
         "monitoring": lambda: MonitoringPipeline.run_all(),
     }
+    # -p only accepts STAGE_NAMES, so a stage missing there could never be selected.
+    assert list(stages) == STAGE_NAMES, "STAGE_NAMES is out of sync with the stages above"
     selected = args.pipeline or DEFAULT_STAGE_ORDER
     run_all([stages[name] for name in selected])
